@@ -1,0 +1,43 @@
+export default {
+  colors: {
+    light: {
+      primary: '#156a67',
+      onPrimary: '#e1fffc',
+      primaryContainer: '#a5f0eb',
+      surface: '#faf9f6',
+      onSurface: '#303330',
+      onSurfaceVariant: '#5d605c',
+      surfaceContainer: '#eeeeea',
+      surfaceContainerLow: '#f4f4f0',
+      surfaceContainerHigh: '#e8e9e4',
+      outline: '#797b78',
+    },
+    dark: {
+      primary: '#93d2d1',
+      onPrimary: '#003737',
+      primaryContainer: '#5d9b9b',
+      surface: '#121412',
+      onSurface: '#e2e3df',
+      onSurfaceVariant: '#bfc8c8',
+      surfaceContainer: '#1e201e',
+      surfaceContainerLow: '#1a1c1a',
+      surfaceContainerHigh: '#282a28',
+      outline: '#3f4848',
+    },
+  },
+  fonts: {
+    light: 'Manrope_300Light',
+    regular: 'Manrope_400Regular',
+    medium: 'Manrope_500Medium',
+    semibold: 'Manrope_600SemiBold',
+    bold: 'Manrope_700Bold',
+    extrabold: 'Manrope_800ExtraBold',
+  },
+  radius: {
+    sm: 4,
+    md: 8,
+    lg: 12,
+    xl: 16,
+    full: 9999,
+  },
+}

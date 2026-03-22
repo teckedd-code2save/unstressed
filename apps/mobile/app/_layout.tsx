@@ -2,8 +2,8 @@ import '../global.css'
 import { useEffect } from 'react'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
-import * as SecureStore from 'expo-secure-store'
+import { ClerkProvider, ClerkLoaded, useAuth } from '@clerk/clerk-expo'
+import { tokenCache } from '@clerk/clerk-expo/token-cache'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts } from 'expo-font'
 import {
@@ -15,17 +15,13 @@ import {
   Manrope_800ExtraBold,
 } from '@expo-google-fonts/manrope'
 import { useColorScheme } from 'react-native'
-import Constants from 'expo-constants'
 
 SplashScreen.preventAutoHideAsync()
 
-const tokenCache = {
-  async getToken(key: string) {
-    return SecureStore.getItemAsync(key)
-  },
-  async saveToken(key: string, value: string) {
-    return SecureStore.setItemAsync(key, value)
-  },
+const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!
+
+if (!publishableKey) {
+  throw new Error('Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in .env')
 }
 
 function RootLayoutNav() {
@@ -65,11 +61,10 @@ export default function RootLayout() {
   if (!fontsLoaded) return null
 
   return (
-    <ClerkProvider
-      publishableKey={Constants.expoConfig?.extra?.clerkPublishableKey ?? ''}
-      tokenCache={tokenCache}
-    >
-      <RootLayoutNav />
+    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+      <ClerkLoaded>
+        <RootLayoutNav />
+      </ClerkLoaded>
     </ClerkProvider>
   )
 }

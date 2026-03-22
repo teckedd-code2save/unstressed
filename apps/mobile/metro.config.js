@@ -7,8 +7,11 @@ const workspaceRoot = path.resolve(projectRoot, '../..')
 
 const config = getDefaultConfig(projectRoot)
 
-// Monorepo support
-config.watchFolders = [workspaceRoot]
+// Monorepo support — include workspace root AND preserve Expo defaults
+config.watchFolders = [
+  workspaceRoot,
+  ...(config.watchFolders || []),
+]
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),

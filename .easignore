@@ -1,0 +1,17 @@
+node_modules
+.turbo
+dist
+.expo
+*.log
+.env.local
+.env.production
+android
+ios
+_bmad/
+_bmad-output/
+.agent/
+.claude/
+.gemini/
+.vscode/
+stitch_unstressed/
+**/.DS_Store

@@ -4,6 +4,10 @@ import { useSignIn, useSignUp, useOAuth } from '@clerk/clerk-expo'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import * as AuthSession from 'expo-auth-session'
+import * as WebBrowser from 'expo-web-browser'
+
+WebBrowser.maybeCompleteAuthSession()
 
 export default function WelcomeScreen() {
   const router = useRouter()
@@ -13,7 +17,8 @@ export default function WelcomeScreen() {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true)
-      const { createdSessionId, setActive } = await startGoogleOAuth()
+      const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'unstressed' })
+      const { createdSessionId, setActive } = await startGoogleOAuth({ redirectUrl })
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId })
         router.replace('/(tabs)/')

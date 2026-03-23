@@ -2,11 +2,20 @@ import type { FastifyInstance } from 'fastify'
 import { getContextByUserId } from '@unstressed/db'
 import { searchNearbyPlaces } from '../lib/places.js'
 import { generateRightNow } from '../lib/ai.js'
+import { cacheGet, cacheSet, CacheKey, TTL } from '../lib/cache.js'
 
 export async function suggestionsRoute(app: FastifyInstance) {
   app.get('/right-now', async (request, reply) => {
     const userId = (request as any).userId as string
     const { lat, lng } = request.query as { lat?: string; lng?: string }
+
+    const parsedLat = lat ? parseFloat(lat) : 0
+    const parsedLng = lng ? parseFloat(lng) : 0
+
+    // Cache hit — return immediately
+    const rnKey = CacheKey.rightNow(userId, parsedLat, parsedLng)
+    const cached = await cacheGet(rnKey)
+    if (cached) return reply.send(cached)
 
     const context = await getContextByUserId(userId)
     const hour = new Date().getHours()
@@ -14,25 +23,19 @@ export async function suggestionsRoute(app: FastifyInstance) {
       hour < 6 ? 'early morning' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
     const energyLevel = context?.energyLevel ?? 'medium'
 
-    // Fetch nearby real places if location provided
+    // Fetch nearby real places
     let nearbyPlaces: { title: string; types: string[]; rating: number | null; distanceMins: number | null; imageUrl: string | null }[] = []
 
     if (lat && lng) {
       try {
         const places = await searchNearbyPlaces(
-          parseFloat(lat),
-          parseFloat(lng),
-          '',
-          [],
+          parsedLat, parsedLng, '', [],
           context?.preferredSanctuaries ?? [],
           3000,
         )
         nearbyPlaces = places.map(p => ({
-          title: p.title,
-          types: p.types,
-          rating: p.rating,
-          distanceMins: p.distanceMins,
-          imageUrl: p.imageUrl,
+          title: p.title, types: p.types, rating: p.rating,
+          distanceMins: p.distanceMins, imageUrl: p.imageUrl,
         }))
       } catch (err: any) {
         app.log.warn({ err: err?.message }, 'Places fetch failed for right-now')
@@ -41,13 +44,11 @@ export async function suggestionsRoute(app: FastifyInstance) {
 
     try {
       const data = await generateRightNow(
-        energyLevel,
-        timeOfDay,
+        energyLevel, timeOfDay,
         context?.preferredSanctuaries ?? [],
         nearbyPlaces,
       )
 
-      // Inject real place image into hero if available
       if (nearbyPlaces.length > 0 && nearbyPlaces[0].imageUrl) {
         if (data.heroSuggestion) {
           data.heroSuggestion.imageUrl = nearbyPlaces[0].imageUrl as any
@@ -60,11 +61,11 @@ export async function suggestionsRoute(app: FastifyInstance) {
         }
       }
 
-      // Attach nearby places to response for display
-      return reply.send({
-        ...data,
-        nearbyPlaces: nearbyPlaces.slice(0, 3),
-      })
+      const response = { ...data, nearbyPlaces: nearbyPlaces.slice(0, 3) }
+
+      // Cache before returning
+      await cacheSet(rnKey, response, TTL.RIGHT_NOW)
+      return reply.send(response)
     } catch (err: any) {
       app.log.error({ err: err?.message }, 'Right-now generation failed')
       return reply.code(500).send({ error: 'Suggestions temporarily unavailable.' })

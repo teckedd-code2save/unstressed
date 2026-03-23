@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/clerk-expo'
+import { useState } from 'react'
+import { useAuth, useUser } from '@clerk/clerk-expo'
 import { createApiClient } from '@/lib/api'
+import { useCachedApi } from './useCachedApi'
 
 export type UserContext = {
   energyLevel: string
@@ -15,24 +16,30 @@ export type UserContext = {
 
 export function useUserContext() {
   const { getToken } = useAuth()
-  const [context, setContext] = useState<UserContext | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { user } = useUser()
   const [isSaving, setIsSaving] = useState(false)
 
-  useEffect(() => {
-    const api = createApiClient(getToken)
-    api
-      .get('/api/context')
-      .then(setContext)
-      .finally(() => setIsLoading(false))
-  }, [])
+  const { data: context, isLoading, mutate } = useCachedApi<UserContext>(
+    user?.id ? `ctx-${user.id}` : null,
+    async () => {
+      const api = createApiClient(getToken)
+      return await api.get('/api/context')
+    },
+    1000 * 60 * 5 // 5 min TTL
+  )
 
   const updateContext = async (patch: Partial<UserContext>) => {
+    if (!context) return
     setIsSaving(true)
     try {
+      // Optimistic update
+      const nextContext = { ...context, ...patch }
+      mutate(nextContext)
+
+      // Network update
       const api = createApiClient(getToken)
       const updated = await api.patch('/api/context', patch)
-      setContext(updated)
+      mutate(updated)
     } finally {
       setIsSaving(false)
     }

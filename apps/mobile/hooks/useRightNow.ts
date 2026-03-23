@@ -42,9 +42,24 @@ export type RightNowData = {
   nearbyPlaces?: NearbyPlace[]
 }
 
+// Instant fallback shown before API responds
+function getInstantFallback(): RightNowData {
+  const h = new Date().getHours()
+  const time = h < 6 ? 'early morning' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return {
+    headline: `A ${time} worth being present for.`,
+    moodTags: ['Quiet', 'Nearby', '30 mins'],
+    heroSuggestion: null,
+    energyInsight: null,
+    recommendation: { title: 'Recommended: Micro-Reset', subtitle: '10 min · Breathwork & Rest', cta: 'Start' },
+    upcomingMomentum: [],
+    contextualInsight: null,
+  }
+}
+
 export function useRightNow() {
   const { getToken } = useAuth()
-  const [data, setData] = useState<RightNowData | null>(null)
+  const [data, setData] = useState<RightNowData>(getInstantFallback)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -53,15 +68,12 @@ export function useRightNow() {
 
     async function load() {
       try {
-        // Request location permission and get coords
         const { status } = await Location.requestForegroundPermissionsAsync()
         let locationParams = ''
-
         if (status === 'granted') {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
           locationParams = `?lat=${loc.coords.latitude}&lng=${loc.coords.longitude}`
         }
-
         const api = createApiClient(getToken)
         const result = await api.get(`/api/suggestions/right-now${locationParams}`)
         if (!cancelled) setData(result)

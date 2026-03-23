@@ -20,38 +20,39 @@ export interface CurationInput {
   query?: string
 }
 
-export async function curatePlace(input: CurationInput): Promise<{ description: string; whyItFits: string }> {
+export async function curatePlaces(inputs: CurationInput[]): Promise<{ description: string; whyItFits: string }[]> {
   const groq = getGroq()
 
   if (groq) {
-    const prompt = `You are Unstressed's curation engine. Given a real place and user context, write a brief evocative description and a personalized "why it fits" explanation.
+    const prompt = `You are Unstressed's curation engine. For each place, write a brief evocative description and personalized "why it fits" for the user.
 
-Place: "${input.placeName}" (types: ${input.placeTypes.slice(0,3).join(', ')})
-User energy: ${input.energyLevel}
-User mood filters: ${input.moodFilters.join(', ') || 'none'}
-User sanctuary preferences: ${input.preferredSanctuaries.join(', ') || 'none'}
-${input.query ? `Search intent: "${input.query}"` : ''}
+User context: energy=${inputs[0]?.energyLevel ?? 'medium'}, moods=${inputs[0]?.moodFilters.join(',') || 'none'}, preferences=${inputs[0]?.preferredSanctuaries.join(',') || 'none'}
+${inputs[0]?.query ? `Search: "${inputs[0].query}"` : ''}
 
-Respond with ONLY valid JSON:
-{
-  "description": "2-sentence evocative description of this place",
-  "whyItFits": "2-sentence personalized explanation of why this fits the user's current energy and preferences"
-}`
+Places:
+${inputs.map((p, i) => `${i}. "${p.placeName}" (${p.placeTypes.slice(0,2).join(', ')})`).join('\n')}
+
+Respond ONLY with a JSON array of exactly ${inputs.length} objects:
+[{"description":"2-sentence evocative description","whyItFits":"1-sentence personalized reason"},...]`
 
     try {
       const res = await groq.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
-        max_tokens: 300,
+        max_tokens: 800,
         messages: [{ role: 'user', content: prompt }],
       })
       const text = res.choices[0]?.message?.content?.trim() ?? ''
       const json = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-      return JSON.parse(json)
-    } catch {
-      return templateCuration(input)
-    }
+      const parsed = JSON.parse(json)
+      if (Array.isArray(parsed) && parsed.length === inputs.length) return parsed
+    } catch {}
   }
 
+  return inputs.map(templateCuration)
+}
+
+// Keep single for backwards compat
+export async function curatePlace(input: CurationInput): Promise<{ description: string; whyItFits: string }> {
   return templateCuration(input)
 }
 

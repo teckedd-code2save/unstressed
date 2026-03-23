@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { getContextByUserId, logSearchQuery } from '@unstressed/db'
 import { searchNearbyPlaces } from '../lib/places.js'
-import { curatePlace } from '../lib/ai.js'
+import { curatePlaces } from '../lib/ai.js'
 
 export async function searchRoute(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
@@ -38,39 +38,37 @@ export async function searchRoute(app: FastifyInstance) {
         return reply.send({ results: [], message: 'No places found nearby. Try a different search.' })
       }
 
-      // 2. Curate each place with AI (description + why it fits)
-      const curated = await Promise.all(
-        places.map(async (place) => {
-          const { description, whyItFits } = await curatePlace({
-            placeName: place.title,
-            placeTypes: place.types,
-            rating: place.rating,
-            isOpenNow: place.isOpenNow,
-            distanceMins: place.distanceMins,
-            energyLevel: context?.energyLevel ?? 'medium',
-            preferredSanctuaries: context?.preferredSanctuaries ?? [],
-            moodFilters: moodFilters ?? [],
-            query,
-          })
+      // 2. Batch curate all places in one AI call
+      const curationInputs = places.map(place => ({
+        placeName: place.title,
+        placeTypes: place.types,
+        rating: place.rating,
+        isOpenNow: place.isOpenNow,
+        distanceMins: place.distanceMins,
+        energyLevel: context?.energyLevel ?? 'medium',
+        preferredSanctuaries: context?.preferredSanctuaries ?? [],
+        moodFilters: moodFilters ?? [],
+        query,
+      }))
 
-          return {
-            id: place.id,
-            title: place.title,
-            description,
-            address: place.address,
-            rating: place.rating,
-            reviewCount: place.reviewCount,
-            isOpenNow: place.isOpenNow,
-            imageUrl: place.imageUrl,
-            contextTags: buildContextTags(place),
-            moodTags: moodFilters?.length ? moodFilters.slice(0, 2) : inferMoodTags(place.types),
-            distanceMins: place.distanceMins,
-            whyItFits,
-            lat: place.lat,
-            lng: place.lng,
-          }
-        })
-      )
+      const curations = await curatePlaces(curationInputs)
+
+      const curated = places.map((place, i) => ({
+        id: place.id,
+        title: place.title,
+        description: curations[i]?.description ?? '',
+        address: place.address,
+        rating: place.rating,
+        reviewCount: place.reviewCount,
+        isOpenNow: place.isOpenNow,
+        imageUrl: place.imageUrl,
+        contextTags: buildContextTags(place),
+        moodTags: moodFilters?.length ? moodFilters.slice(0, 2) : inferMoodTags(place.types),
+        distanceMins: place.distanceMins,
+        whyItFits: curations[i]?.whyItFits ?? null,
+        lat: place.lat,
+        lng: place.lng,
+      }))
 
       await logSearchQuery(userId, query, moodFilters ?? [], curated.length)
       return reply.send({ results: curated })

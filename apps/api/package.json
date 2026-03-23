@@ -11,11 +11,14 @@
     "@anthropic-ai/sdk": "^0.80.0",
     "@clerk/backend": "^3.2.2",
     "@fastify/cors": "^11.2.0",
+    "@keyv/redis": "^5.1.6",
     "@unstressed/db": "workspace:*",
     "axios": "^1.13.6",
     "dotenv": "^16.4.7",
     "fastify": "^5.8.2",
-    "groq-sdk": "^1.1.1"
+    "groq-sdk": "^1.1.1",
+    "ioredis": "^5.10.1",
+    "keyv": "^5.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.13",

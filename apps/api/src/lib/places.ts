@@ -1,21 +1,23 @@
 import axios from 'axios'
+import { cacheGet, cacheSet, CacheKey, TTL } from './cache.js'
 
 const PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY!
 
-// Sanctuary type → Google Places type mapping
+// Sanctuary type → Google Places API (New) type mapping
+// Valid types: https://developers.google.com/maps/documentation/places/web-service/place-types
 const MOOD_TO_PLACE_TYPE: Record<string, string[]> = {
-  'Solitude':        ['library', 'park', 'museum'],
-  'Deep Focus':      ['library', 'cafe', 'book_store'],
-  'Creative Flow':   ['cafe', 'art_gallery', 'museum'],
-  'Restorative Sleep': ['spa', 'park', 'natural_feature'],
-  'Vibrant Energy':  ['restaurant', 'night_club', 'shopping_mall'],
-  'Nature Escape':   ['park', 'campground', 'natural_feature'],
+  'Solitude':          ['library', 'park', 'museum'],
+  'Deep Focus':        ['library', 'coffee_shop', 'book_store'],
+  'Creative Flow':     ['coffee_shop', 'art_gallery', 'museum'],
+  'Restorative Sleep': ['spa', 'park', 'wellness_center'],
+  'Vibrant Energy':    ['restaurant', 'bar', 'shopping_mall'],
+  'Nature Escape':     ['park', 'national_park', 'botanical_garden'],
 }
 
 const SANCTUARY_TO_TYPE: Record<string, string[]> = {
-  'quiet-waterfronts': ['natural_feature', 'park'],
-  'forest-trails':     ['park', 'campground'],
-  'quiet-cafes':       ['cafe'],
+  'quiet-waterfronts': ['park'],
+  'forest-trails':     ['park', 'national_park'],
+  'quiet-cafes':       ['coffee_shop', 'cafe'],
   'art-galleries':     ['art_gallery', 'museum'],
   'libraries':         ['library'],
   'rooftop-spaces':    ['bar', 'restaurant'],
@@ -79,6 +81,13 @@ export async function searchNearbyPlaces(
     types.add('library')
   }
 
+  const typeList = Array.from(types).slice(0, 5)
+
+  // Check cache first
+  const cacheKey = CacheKey.placesSearch(lat, lng, typeList, radius)
+  const cached = await cacheGet<EnrichedPlace[]>(cacheKey)
+  if (cached) return cached
+
   // Use Places API (New) — searchNearby endpoint
   const body: Record<string, any> = {
     locationRestriction: {
@@ -89,10 +98,10 @@ export async function searchNearbyPlaces(
     },
     maxResultCount: 8,
     languageCode: 'en',
-    includedTypes: Array.from(types).slice(0, 5),
+    includedTypes: typeList,
   }
 
-  if (keyword) body.textQuery = keyword
+  body.rankPreference = 'POPULARITY'
 
   const resp = await axios.post(
     'https://places.googleapis.com/v1/places:searchNearby',
@@ -101,14 +110,14 @@ export async function searchNearbyPlaces(
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': PLACES_API_KEY,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.currentOpeningHours,places.photos,places.types,places.location,places.priceLevel',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.currentOpeningHours,places.photos,places.types,places.location',
       },
     }
   )
 
   const results = resp.data.places ?? []
 
-  return results.slice(0, 6).map((place: any) => {
+  const enriched = results.slice(0, 6).map((place: any) => {
     const photoName = place.photos?.[0]?.name
     return {
       id: place.id,
@@ -125,6 +134,10 @@ export async function searchNearbyPlaces(
       distanceMins: estimateTravelMins(lat, lng, place.location?.latitude ?? lat, place.location?.longitude ?? lng),
     }
   })
+
+  // Cache the results
+  await cacheSet(cacheKey, enriched, TTL.PLACES_SEARCH)
+  return enriched
 }
 
 function estimateTravelMins(lat1: number, lng1: number, lat2: number, lng2: number): number {

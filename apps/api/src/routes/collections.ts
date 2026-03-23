@@ -5,11 +5,16 @@ import {
   createCollection,
   addItemToCollection,
 } from '@unstressed/db'
+import { cacheGet, cacheSet, cacheDel, CacheKey, TTL } from '../lib/cache.js'
 
 export async function collectionsRoute(app: FastifyInstance) {
   // GET /api/collections — fetch all trips, folders, and recently saved
   app.get('/', async (request, reply) => {
     const userId = (request as any).userId as string
+
+    const colKey = CacheKey.collections(userId)
+    const cached = await cacheGet(colKey)
+    if (cached) return reply.send(cached)
 
     const [allCollections, recentItems] = await Promise.all([
       getCollectionsByUser(userId),
@@ -51,7 +56,9 @@ export async function collectionsRoute(app: FastifyInstance) {
       collectionName: item.collection.name,
     }))
 
-    return reply.send({ trips, folders, recentlySaved })
+    const colResponse = { trips, folders, recentlySaved }
+    await cacheSet(colKey, colResponse, TTL.COLLECTIONS)
+    return reply.send(colResponse)
   })
 
   // POST /api/collections — create a new collection

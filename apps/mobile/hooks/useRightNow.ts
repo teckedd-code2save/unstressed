@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/clerk-expo'
+import * as Location from 'expo-location'
 import { createApiClient } from '@/lib/api'
 
 export type MomentumItem = {
@@ -8,13 +9,20 @@ export type MomentumItem = {
   description: string
 }
 
+export type NearbyPlace = {
+  title: string
+  imageUrl: string | null
+  distanceMins: number | null
+  rating: number | null
+}
+
 export type RightNowData = {
   headline: string
   moodTags: string[]
   heroSuggestion: {
     title: string
     description: string
-    imageUrl: string
+    imageUrl: string | null
   } | null
   energyInsight: {
     level: string
@@ -31,6 +39,7 @@ export type RightNowData = {
     headline: string
     body: string
   } | null
+  nearbyPlaces?: NearbyPlace[]
 }
 
 export function useRightNow() {
@@ -40,12 +49,31 @@ export function useRightNow() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const api = createApiClient(getToken)
-    api
-      .get('/api/suggestions/right-now')
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setIsLoading(false))
+    let cancelled = false
+
+    async function load() {
+      try {
+        // Request location permission and get coords
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        let locationParams = ''
+
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+          locationParams = `?lat=${loc.coords.latitude}&lng=${loc.coords.longitude}`
+        }
+
+        const api = createApiClient(getToken)
+        const result = await api.get(`/api/suggestions/right-now${locationParams}`)
+        if (!cancelled) setData(result)
+      } catch (err: any) {
+        if (!cancelled) setError(err.message)
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
   }, [])
 
   return { data, isLoading, error }

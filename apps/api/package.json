@@ -10,10 +10,12 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "@clerk/backend": "^3.2.2",
-    "@unstressed/db": "workspace:*",
-    "fastify": "^5.8.2",
     "@fastify/cors": "^11.2.0",
-    "dotenv": "^16.4.7"
+    "@unstressed/db": "workspace:*",
+    "axios": "^1.13.6",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.8.2",
+    "groq-sdk": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.13",

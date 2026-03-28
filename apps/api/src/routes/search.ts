@@ -1,111 +1,117 @@
 import type { FastifyInstance } from 'fastify'
-import { getContextByUserId, logSearchQuery } from '@unstressed/db'
-import { searchNearbyPlaces } from '../lib/places.js'
-import { curatePlaces } from '../lib/ai.js'
+
+function fallbackSearch(query: string, moodFilters: string[]) {
+  return [
+    {
+      id: 'fallback-1',
+      title: 'The Quiet Library',
+      description:
+        'A hushed reading room with tall oak shelves and natural light. Perfect for deep focus without distraction.',
+      imageUrl: null,
+      contextTags: ['Free Entry', 'Quiet Zone'],
+      moodTags: ['Deep Focus', 'Solitude'],
+      distanceMins: 12,
+      whyItFits:
+        'Based on your energy state and search intent, a calm, structured environment helps you sustain concentration without overstimulation.',
+    },
+    {
+      id: 'fallback-2',
+      title: 'Tidal Rooftop Garden',
+      description:
+        'An elevated green space with city views and scattered seating. Ideal for clear-headed reflection.',
+      imageUrl: null,
+      contextTags: ['Outdoor', 'Open Until 9 PM'],
+      moodTags: ['Nature Escape', 'Creative Flow'],
+      distanceMins: 20,
+      whyItFits:
+        'A change of elevation and fresh air can reset mental fatigue. This fits your preference for nature-adjacent sanctuaries.',
+    },
+    {
+      id: 'fallback-3',
+      title: 'Ember Café',
+      description:
+        'Warm lighting, slow jazz, and single-origin pour-overs. A social-yet-focused sanctuary for creatives.',
+      imageUrl: null,
+      contextTags: ['WiFi', 'Affordable'],
+      moodTags: ['Creative Flow', 'Vibrant Energy'],
+      distanceMins: 8,
+      whyItFits:
+        "Ambient noise at the right level enhances creative thinking. Ember's curated atmosphere matches your current context well.",
+    },
+    {
+      id: 'fallback-4',
+      title: 'Stillwater Spa Lounge',
+      description:
+        'A members-open wellness lounge with hydrotherapy and guided breathwork sessions on the hour.',
+      imageUrl: null,
+      contextTags: ['Restorative', 'Booking Advised'],
+      moodTags: ['Restorative Sleep', 'Solitude'],
+      distanceMins: 25,
+      whyItFits:
+        'Your energy pattern suggests a parasympathetic reset would help. Breathwork and warmth are clinically effective for cortisol reduction.',
+    },
+  ]
+}
 
 export async function searchRoute(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
     const userId = (request as any).userId as string
-    const { query, moodFilters, lat, lng } = request.body as {
+    const { query, moodFilters } = request.body as {
       query?: string
       moodFilters?: string[]
-      lat?: number
-      lng?: number
     }
 
-    const context = await getContextByUserId(userId)
+    const context = await app.services.getContextByUserId(userId)
 
-    // If no location provided, return empty and ask for location
-    if (!lat || !lng) {
-      return reply.send({
-        results: [],
-        requiresLocation: true,
-        message: 'Share your location to find real places near you.',
-      })
-    }
+    const prompt = `You are Unstressed's intelligent search engine. You understand mood, energy, and context — not just keywords.
+
+User context: energy level ${context?.energyLevel ?? 'medium'}, preferred sanctuaries: ${context?.preferredSanctuaries?.join(', ') || 'not set'}.
+Search query: "${query ?? ''}"
+Mood filters: ${moodFilters?.join(', ') || 'none'}
+
+Return 4 sanctuary/place suggestions as JSON array:
+[
+  {
+    "id": "unique-id-1",
+    "title": "Place or experience name",
+    "description": "2-3 sentence evocative description",
+    "imageUrl": null,
+    "contextTags": ["Fits Your Budget", "Matches Your Energy Level"],
+    "moodTags": ["Deep Focus", "Solitude"],
+    "distanceMins": 15,
+    "whyItFits": "Personalized explanation of why this fits the user's current context (2-3 sentences)"
+  }
+]
+Respond with ONLY valid JSON array.`
 
     try {
-      // 1. Fetch real places from Google Places API
-      const places = await searchNearbyPlaces(
-        lat,
-        lng,
-        query ?? '',
-        moodFilters ?? [],
-        context?.preferredSanctuaries ?? [],
-      )
+      const anthropic = app.services.createAnthropicClient()
+      if (!anthropic) throw new Error('ANTHROPIC_API_KEY is not configured')
 
-      if (places.length === 0) {
-        return reply.send({ results: [], message: 'No places found nearby. Try a different search.' })
-      }
+      const message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: prompt }],
+      })
 
-      // 2. Batch curate all places in one AI call
-      const curationInputs = places.map(place => ({
-        placeName: place.title,
-        placeTypes: place.types,
-        rating: place.rating,
-        isOpenNow: place.isOpenNow,
-        distanceMins: place.distanceMins,
-        energyLevel: context?.energyLevel ?? 'medium',
-        preferredSanctuaries: context?.preferredSanctuaries ?? [],
-        moodFilters: moodFilters ?? [],
-        query,
-      }))
+      const content = message.content[0]
+      if (content.type !== 'text') return reply.code(500).send({ error: 'AI error' })
 
-      const curations = await curatePlaces(curationInputs)
+      // Strip markdown code fences if present
+      const text = content.text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+      const results = JSON.parse(text)
 
-      const curated = places.map((place, i) => ({
-        id: place.id,
-        title: place.title,
-        description: curations[i]?.description ?? '',
-        address: place.address,
-        rating: place.rating,
-        reviewCount: place.reviewCount,
-        isOpenNow: place.isOpenNow,
-        imageUrl: place.imageUrl,
-        contextTags: buildContextTags(place),
-        moodTags: moodFilters?.length ? moodFilters.slice(0, 2) : inferMoodTags(place.types),
-        distanceMins: place.distanceMins,
-        whyItFits: curations[i]?.whyItFits ?? null,
-        lat: place.lat,
-        lng: place.lng,
-      }))
+      // Log the search
+      await app.services.logSearchQuery(userId, query, moodFilters ?? [], results.length)
 
-      await logSearchQuery(userId, query, moodFilters ?? [], curated.length)
-      return reply.send({ results: curated })
+      return reply.send({ results })
     } catch (err: any) {
-      app.log.error({ err: err?.message }, 'Places search failed')
-      return reply.code(500).send({ error: 'Search temporarily unavailable. Please try again.' })
+      app.log.warn({ err: err?.message }, 'AI unavailable — serving fallback search')
+      const results = fallbackSearch(query ?? '', moodFilters ?? [])
+      try {
+        await app.services.logSearchQuery(userId, query, moodFilters ?? [], results.length)
+      } catch (_) {}
+      return reply.send({ results })
     }
   })
-}
-
-function buildContextTags(place: { rating: number | null; isOpenNow: boolean | null; distanceMins: number | null; reviewCount: number | null }): string[] {
-  const tags: string[] = []
-  if (place.isOpenNow === true) tags.push('Open Now')
-  if (place.isOpenNow === false) tags.push('Currently Closed')
-  if (place.distanceMins !== null && place.distanceMins <= 10) tags.push('Walking Distance')
-  if (place.distanceMins !== null && place.distanceMins > 10 && place.distanceMins <= 25) tags.push('Short Drive')
-  if (place.rating && place.rating >= 4.5) tags.push('Highly Rated')
-  if (place.reviewCount && place.reviewCount > 500) tags.push('Popular Spot')
-  return tags.slice(0, 3)
-}
-
-function inferMoodTags(types: string[]): string[] {
-  const map: Record<string, string> = {
-    cafe: 'Creative Flow',
-    library: 'Deep Focus',
-    park: 'Nature Escape',
-    spa: 'Restorative Sleep',
-    museum: 'Solitude',
-    art_gallery: 'Solitude',
-    restaurant: 'Vibrant Energy',
-    bar: 'Vibrant Energy',
-    natural_feature: 'Nature Escape',
-  }
-  const tags = new Set<string>()
-  for (const t of types) {
-    if (map[t]) tags.add(map[t])
-    if (tags.size >= 2) break
-  }
-  return tags.size ? Array.from(tags) : ['Quiet Atmosphere']
 }

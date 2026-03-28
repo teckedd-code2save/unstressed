@@ -6,7 +6,7 @@ export type Trip = {
   id: string
   name: string
   subtitle: string
-  coverImage: string
+  coverImage: string | null
   dateRange?: string
   daysUntil?: number
   memberAvatars?: string[]
@@ -25,7 +25,7 @@ export type RecentSave = {
   id: string
   name: string
   location: string
-  imageUrl: string
+  imageUrl: string | null
   collectionName: string
 }
 

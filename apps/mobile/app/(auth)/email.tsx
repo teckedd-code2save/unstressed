@@ -30,7 +30,7 @@ export default function EmailAuthScreen() {
         const result = await signIn.create({ identifier: email, password })
         if (result.status === 'complete' && setSignInActive) {
           await setSignInActive({ session: result.createdSessionId })
-          router.replace('/(tabs)/')
+          router.replace('/')
         }
       }
     } catch (err: any) {
@@ -48,7 +48,7 @@ export default function EmailAuthScreen() {
       const result = await signUp.attemptEmailAddressVerification({ code })
       if (result.status === 'complete' && setSignUpActive) {
         await setSignUpActive({ session: result.createdSessionId })
-        router.replace('/(tabs)/')
+        router.replace('/')
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message ?? 'Invalid code')

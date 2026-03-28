@@ -1,20 +1,13 @@
 import type { FastifyInstance } from 'fastify'
-import { getContextByUserId, upsertContext } from '@unstressed/db'
-import { cacheGet, cacheSet, cacheDel, CacheKey, TTL } from '../lib/cache.js'
 
 export async function contextRoute(app: FastifyInstance) {
   // GET /api/context
   app.get('/', async (request, reply) => {
     const userId = (request as any).userId as string
-
-    const ctxKey = CacheKey.userContext(userId)
-    const cached = await cacheGet(ctxKey)
-    if (cached) return reply.send(cached)
-
-    const context = await getContextByUserId(userId)
+    const context = await app.services.getContextByUserId(userId)
     if (!context) return reply.code(404).send({ error: 'Context not found' })
 
-    const result = {
+    return reply.send({
       energyLevel: context.energyLevel,
       preferredSanctuaries: context.preferredSanctuaries,
       silenceStart: context.silenceStart,
@@ -23,9 +16,7 @@ export async function contextRoute(app: FastifyInstance) {
       calendarProvider: context.calendarProvider,
       healthProvider: context.healthProvider,
       lastSynced: context.lastSynced?.toISOString() ?? null,
-    }
-    await cacheSet(ctxKey, result, TTL.USER_CONTEXT)
-    return reply.send(result)
+    })
   })
 
   // PATCH /api/context
@@ -41,11 +32,7 @@ export async function contextRoute(app: FastifyInstance) {
       healthProvider?: string
     }
 
-    const updated = await upsertContext(userId, body)
-
-    // Invalidate context cache + right-now cache on update
-    await cacheDel(CacheKey.userContext(userId))
-    await cacheDel(`rightnow:${userId}:*`)
+    const updated = await app.services.upsertContext(userId, body)
 
     return reply.send({
       energyLevel: updated.energyLevel,

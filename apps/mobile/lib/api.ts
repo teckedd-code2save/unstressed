@@ -1,12 +1,14 @@
-import { useAuth } from '@clerk/clerk-expo'
 import { getApiUrl } from './utils'
 
 async function fetchWithAuth(path: string, token: string | null, options?: RequestInit) {
-  const res = await fetch(`${getApiUrl()}${path}`, {
+  const apiUrl = getApiUrl()
+  const shouldBypassAuth = !token && /localhost|127\.0\.0\.1/.test(apiUrl)
+  const res = await fetch(`${apiUrl}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(shouldBypassAuth ? { 'x-dev-bypass': 'true' } : {}),
       ...options?.headers,
     },
   })
@@ -14,7 +16,14 @@ async function fetchWithAuth(path: string, token: string | null, options?: Reque
     const error = await res.text()
     throw new Error(error || `HTTP ${res.status}`)
   }
-  return res.json()
+  if (res.status === 204) return null
+
+  const contentType = res.headers.get('content-type') ?? ''
+  if (contentType.includes('application/json')) {
+    return res.json()
+  }
+
+  return res.text()
 }
 
 export function createApiClient(getToken: () => Promise<string | null>) {

@@ -1,44 +1,18 @@
-import { useRef, useEffect } from 'react'
 import {
+  Alert,
   View,
   Text,
   ScrollView,
   Pressable,
   Image,
   useColorScheme,
-  Animated,
+  ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useUser } from '@clerk/clerk-expo'
 import { LinearGradient } from 'expo-linear-gradient'
-import * as Haptics from 'expo-haptics'
 import { useRightNow } from '@/hooks/useRightNow'
 import { formatTimeOfDay, getEnergyEmoji } from '@/lib/utils'
-
-function SkeletonLoader({ isDark }: { isDark: boolean }) {
-  const pulse = useRef(new Animated.Value(0.4)).current
-
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.4, duration: 800, useNativeDriver: true }),
-      ])
-    )
-    anim.start()
-    return () => anim.stop()
-  }, [pulse])
-
-  const skeletonBg = isDark ? '#2a2c2a' : '#e5e5e0'
-
-  return (
-    <View className="pt-6 gap-4">
-      <Animated.View style={{ opacity: pulse, height: 40, width: '65%', borderRadius: 12, backgroundColor: skeletonBg }} />
-      <Animated.View style={{ opacity: pulse, height: 180, width: '100%', borderRadius: 16, backgroundColor: skeletonBg }} />
-      <Animated.View style={{ opacity: pulse, height: 100, width: '100%', borderRadius: 16, backgroundColor: skeletonBg }} />
-    </View>
-  )
-}
 
 export default function RightNowScreen() {
   const { user } = useUser()
@@ -51,8 +25,9 @@ export default function RightNowScreen() {
   const textPrimary = isDark ? 'text-dark-on-surface' : 'text-on-surface'
   const textSecondary = isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant'
   const accentColor = isDark ? '#93d2d1' : '#156a67'
-
-  const hapticLight = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+  const showPlannedFeature = (feature: string) => {
+    Alert.alert('In progress', `${feature} is part of the next implementation slice.`)
+  }
 
   return (
     <SafeAreaView className={`flex-1 ${bg}`} edges={['top']}>
@@ -78,7 +53,7 @@ export default function RightNowScreen() {
             Unstressed
           </Text>
         </View>
-        <Pressable className="p-1">
+        <Pressable className="p-1" onPress={() => showPlannedFeature('Settings')}>
           <Text style={{ fontSize: 18 }}>⚙️</Text>
         </Pressable>
       </View>
@@ -89,7 +64,9 @@ export default function RightNowScreen() {
         showsVerticalScrollIndicator={false}
       >
         {isLoading ? (
-          <SkeletonLoader isDark={isDark} />
+          <View className="flex-1 items-center justify-center pt-20">
+            <ActivityIndicator color={accentColor} />
+          </View>
         ) : (
           <>
             {/* Hero: Time + headline suggestion */}
@@ -127,7 +104,10 @@ export default function RightNowScreen() {
 
             {/* Hero suggestion card */}
             {data?.heroSuggestion && (
-              <Pressable className="rounded-2xl overflow-hidden mb-4 active:opacity-90">
+              <Pressable
+                className="rounded-2xl overflow-hidden mb-4 active:opacity-90"
+                onPress={() => showPlannedFeature(data.heroSuggestion?.title ?? 'This suggestion')}
+              >
                 {data.heroSuggestion.imageUrl ? (
                   <Image
                     source={{ uri: data.heroSuggestion.imageUrl }}
@@ -136,14 +116,13 @@ export default function RightNowScreen() {
                   />
                 ) : (
                   <LinearGradient
-                    colors={isDark ? ["#0d3333", "#1a5c5c", "#93d2d1"] : ["#156a67", "#2a9d97", "#93d2d1"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{ width: '100%', height: 176 }}
+                    colors={isDark ? ['#23403f', '#121412'] : ['#d9f0ee', '#b9ddd9']}
+                    className="w-full h-44"
                   />
                 )}
                 <LinearGradient
                   colors={['transparent', 'rgba(0,0,0,0.75)']}
+                  className="absolute inset-0"
                   style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
                 />
                 <View className="absolute bottom-0 left-0 right-0 p-4 flex-row justify-between items-end">
@@ -162,7 +141,7 @@ export default function RightNowScreen() {
                     </Text>
                   </View>
                   <Pressable
-                    onPress={hapticLight}
+                    onPress={() => showPlannedFeature(data.heroSuggestion?.title ?? 'This suggestion')}
                     className="rounded-full px-4 py-2 items-center justify-center"
                     style={{ backgroundColor: accentColor }}
                   >
@@ -232,7 +211,7 @@ export default function RightNowScreen() {
                   {data.recommendation.subtitle}
                 </Text>
                 <Pressable
-                  onPress={hapticLight}
+                  onPress={() => showPlannedFeature(data.recommendation?.title ?? 'This recommendation')}
                   className="mt-4 rounded-full py-3 items-center active:opacity-80"
                   style={{ backgroundColor: accentColor }}
                 >
@@ -258,7 +237,7 @@ export default function RightNowScreen() {
                 >
                   Upcoming Momentum
                 </Text>
-                <Pressable>
+                <Pressable onPress={() => showPlannedFeature('Full forecast')}>
                   <Text style={{ fontFamily: 'Manrope_600SemiBold', fontSize: 13, color: accentColor }}>
                     Full Forecast →
                   </Text>
@@ -326,7 +305,7 @@ export default function RightNowScreen() {
                 </Text>
                 <View className="flex-row gap-3 mt-4">
                   <Pressable
-                    onPress={hapticLight}
+                    onPress={() => showPlannedFeature('Optimization actions')}
                     className="flex-1 rounded-full py-3 items-center active:opacity-80"
                     style={{ backgroundColor: accentColor }}
                   >
@@ -341,7 +320,7 @@ export default function RightNowScreen() {
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={hapticLight}
+                    onPress={() => showPlannedFeature('Insight acknowledgement')}
                     className="flex-1 rounded-full py-3 items-center border border-outline/30 active:opacity-80"
                   >
                     <Text

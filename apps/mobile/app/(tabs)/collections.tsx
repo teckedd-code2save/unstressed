@@ -1,4 +1,5 @@
 import {
+  Alert,
   View,
   Text,
   ScrollView,
@@ -8,13 +9,11 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
 import { useCollections } from '@/hooks/useCollections'
 
 export default function CollectionsScreen() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
-  const router = useRouter()
   const { trips, folders, recentlySaved, isLoading } = useCollections()
 
   const accentColor = isDark ? '#93d2d1' : '#156a67'
@@ -22,6 +21,9 @@ export default function CollectionsScreen() {
   const cardBg = isDark ? 'bg-dark-surface-container-high' : 'bg-surface-container-low'
   const textPrimary = isDark ? 'text-dark-on-surface' : 'text-on-surface'
   const textSecondary = isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant'
+  const showPlannedFeature = (feature: string) => {
+    Alert.alert('In progress', `${feature} is queued for implementation.`)
+  }
 
   return (
     <SafeAreaView className={`flex-1 ${bg}`} edges={['top']}>
@@ -47,8 +49,8 @@ export default function CollectionsScreen() {
             </Text>
           </View>
           <View className="flex-row gap-3 pt-2">
-            <Pressable><Text style={{ fontSize: 20 }}>🔍</Text></Pressable>
-            <Pressable><Text style={{ fontSize: 20 }}>⚙️</Text></Pressable>
+            <Pressable onPress={() => showPlannedFeature('Collections search')}><Text style={{ fontSize: 20 }}>🔍</Text></Pressable>
+            <Pressable onPress={() => showPlannedFeature('Collections settings')}><Text style={{ fontSize: 20 }}>⚙️</Text></Pressable>
           </View>
         </View>
 
@@ -62,6 +64,7 @@ export default function CollectionsScreen() {
           {['All Trips', 'Saved Places', 'Shared Folders', 'Archive'].map((tab, i) => (
             <Pressable
               key={tab}
+              onPress={() => showPlannedFeature(`${tab} filter`)}
               className="rounded-full px-4 py-2"
               style={{ backgroundColor: i === 0 ? accentColor : isDark ? '#282a28' : '#eeeeea' }}
             >
@@ -91,7 +94,7 @@ export default function CollectionsScreen() {
                 >
                   Planned Trips
                 </Text>
-                <Pressable>
+                <Pressable onPress={() => showPlannedFeature('All trips view')}>
                   <Text style={{ fontFamily: 'Manrope_600SemiBold', fontSize: 13, color: accentColor }}>
                     View all
                   </Text>
@@ -102,14 +105,21 @@ export default function CollectionsScreen() {
                 {trips.map((trip) => (
                   <Pressable
                     key={trip.id}
+                    onPress={() => showPlannedFeature(trip.name)}
                     className={`${cardBg} rounded-2xl overflow-hidden active:opacity-90`}
-                    onPress={() => router.push(`/collection/${trip.id}`)}
                   >
-                    <Image
-                      source={{ uri: trip.coverImage }}
-                      className="w-full h-40"
-                      resizeMode="cover"
-                    />
+                    {trip.coverImage ? (
+                      <Image
+                        source={{ uri: trip.coverImage }}
+                        className="w-full h-40"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View
+                        className="w-full h-40"
+                        style={{ backgroundColor: isDark ? '#1a2e2e' : '#d9f0ee' }}
+                      />
+                    )}
                     <View className="absolute top-3 left-3 rounded-full px-2 py-1 bg-black/40">
                       <Text
                         style={{
@@ -160,6 +170,7 @@ export default function CollectionsScreen() {
 
                 {/* Add new trip CTA */}
                 <Pressable
+                  onPress={() => showPlannedFeature('Trip creation')}
                   className="rounded-2xl border-2 border-dashed items-center py-8 active:opacity-80"
                   style={{ borderColor: `${accentColor}40` }}
                 >
@@ -190,6 +201,7 @@ export default function CollectionsScreen() {
                   Saved Collections
                 </Text>
                 <Pressable
+                  onPress={() => showPlannedFeature('Folder creation')}
                   className="flex-row items-center gap-1 rounded-full px-3 py-1.5"
                   style={{ backgroundColor: accentColor }}
                 >
@@ -209,6 +221,7 @@ export default function CollectionsScreen() {
                 {folders.map((folder) => (
                   <Pressable
                     key={folder.id}
+                    onPress={() => showPlannedFeature(folder.name)}
                     className={`${cardBg} rounded-2xl p-4 flex-row items-center active:opacity-90`}
                   >
                     <View
@@ -273,13 +286,23 @@ export default function CollectionsScreen() {
                   {recentlySaved.map((item) => (
                     <Pressable
                       key={item.id}
+                      onPress={() => showPlannedFeature(item.name)}
                       className={`${cardBg} rounded-2xl p-3 flex-row items-center gap-3 active:opacity-90`}
                     >
-                      <Image
-                        source={{ uri: item.imageUrl }}
-                        className="w-16 h-16 rounded-xl"
-                        resizeMode="cover"
-                      />
+                      {item.imageUrl ? (
+                        <Image
+                          source={{ uri: item.imageUrl }}
+                          className="w-16 h-16 rounded-xl"
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View
+                          className="w-16 h-16 rounded-xl items-center justify-center"
+                          style={{ backgroundColor: `${accentColor}20` }}
+                        >
+                          <Text style={{ fontSize: 20 }}>{item.collectionName.slice(0, 1)}</Text>
+                        </View>
+                      )}
                       <View className="flex-1">
                         <Text
                           className={`${textPrimary} text-sm`}

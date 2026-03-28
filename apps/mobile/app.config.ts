@@ -6,7 +6,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: 'unstressed',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/images/icon.png',
   scheme: 'unstressed',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
@@ -25,10 +24,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   android: {
-    adaptiveIcon: {
-      foregroundImage: './assets/images/adaptive-icon.png',
-      backgroundColor: '#faf9f6',
-    },
     package: 'com.serendepify.unstressed',
     permissions: [
       'ACCESS_FINE_LOCATION',
@@ -39,12 +34,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     bundler: 'metro',
     output: 'static',
-    favicon: './assets/images/favicon.png',
   },
   plugins: [
     'expo-router',
     'expo-font',
-    'expo-secure-store',
     [
       'expo-location',
       {
@@ -52,15 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           'Allow Unstressed to use your location for Safe & Seen.',
       },
     ],
-    [
-      'expo-splash-screen',
-      {
-        image: './assets/images/splash-icon.png',
-        imageWidth: 200,
-        resizeMode: 'contain',
-        backgroundColor: '#faf9f6',
-      },
-    ],
+    'expo-splash-screen',
   ],
   experiments: {
     typedRoutes: true,

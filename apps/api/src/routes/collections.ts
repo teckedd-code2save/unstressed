@@ -1,24 +1,13 @@
 import type { FastifyInstance } from 'fastify'
-import {
-  getCollectionsByUser,
-  getRecentlySavedItems,
-  createCollection,
-  addItemToCollection,
-} from '@unstressed/db'
-import { cacheGet, cacheSet, cacheDel, CacheKey, TTL } from '../lib/cache.js'
 
 export async function collectionsRoute(app: FastifyInstance) {
   // GET /api/collections — fetch all trips, folders, and recently saved
   app.get('/', async (request, reply) => {
     const userId = (request as any).userId as string
 
-    const colKey = CacheKey.collections(userId)
-    const cached = await cacheGet(colKey)
-    if (cached) return reply.send(cached)
-
     const [allCollections, recentItems] = await Promise.all([
-      getCollectionsByUser(userId),
-      getRecentlySavedItems(userId, 5),
+      app.services.getCollectionsByUser(userId),
+      app.services.getRecentlySavedItems(userId, 5),
     ])
 
     const trips = allCollections
@@ -56,9 +45,7 @@ export async function collectionsRoute(app: FastifyInstance) {
       collectionName: item.collection.name,
     }))
 
-    const colResponse = { trips, folders, recentlySaved }
-    await cacheSet(colKey, colResponse, TTL.COLLECTIONS)
-    return reply.send(colResponse)
+    return reply.send({ trips, folders, recentlySaved })
   })
 
   // POST /api/collections — create a new collection
@@ -72,7 +59,7 @@ export async function collectionsRoute(app: FastifyInstance) {
       isPrivate?: boolean
     }
 
-    const collection = await createCollection({
+    const collection = await app.services.createCollection({
       userId,
       name: body.name,
       description: body.description ?? null,
@@ -95,7 +82,7 @@ export async function collectionsRoute(app: FastifyInstance) {
       notes?: string
     }
 
-    const item = await addItemToCollection({
+    const item = await app.services.addItemToCollection({
       collectionId,
       placeName: body.placeName,
       placeLocation: body.placeLocation ?? null,

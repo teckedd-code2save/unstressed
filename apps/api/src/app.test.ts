@@ -96,6 +96,76 @@ function createTestServices() {
     resultsCount: number
   }> = []
 
+  let groupsDashboard = {
+    groups: [
+      {
+        id: 'group_core_weekend',
+        name: 'Core Weekend Circle',
+        role: 'HOST' as const,
+        memberCount: 4,
+        pendingVotes: 2,
+        nextDecisionAt: '2026-03-31T18:00:00.000Z',
+      },
+      {
+        id: 'group_sunset_reset',
+        name: 'Sunset Reset Crew',
+        role: 'MEMBER' as const,
+        memberCount: 3,
+        pendingVotes: 1,
+        nextDecisionAt: '2026-03-30T19:30:00.000Z',
+      },
+    ],
+    activePlan: {
+      id: 'plan_akosombo_retreat',
+      groupId: 'group_core_weekend',
+      title: 'Akosombo Reset',
+      status: 'VOTING' as const,
+      window: {
+        start: '2026-04-04T09:00:00.000Z',
+        end: '2026-04-05T19:00:00.000Z',
+      },
+      participants: [
+        { userId: user.id, displayName: 'You', voteStatus: 'SUBMITTED' as const },
+        { userId: 'member_2', displayName: 'Nana', voteStatus: 'PENDING' as const },
+        { userId: 'member_3', displayName: 'Ama', voteStatus: 'SUBMITTED' as const },
+      ],
+      options: [
+        {
+          id: 'option_river_lodge',
+          title: 'Riverfront Lodge',
+          category: 'stay',
+          score: 92,
+          votes: 2,
+          whyItFits: 'Calm water views, low travel fatigue, and enough privacy for recovery.',
+          isSelectedByUser: true,
+        },
+        {
+          id: 'option_hill_trails',
+          title: 'Hill Trails + Picnic',
+          category: 'activity',
+          score: 87,
+          votes: 1,
+          whyItFits: 'Balances movement with quiet downtime and works for mixed energy levels.',
+          isSelectedByUser: false,
+        },
+      ],
+      itineraryDraft: [
+        {
+          id: 'itinerary_departure',
+          startsAt: '2026-04-04T09:00:00.000Z',
+          title: 'Departure from Accra',
+          type: 'travel',
+        },
+        {
+          id: 'itinerary_checkin',
+          startsAt: '2026-04-04T12:00:00.000Z',
+          title: 'Lodge check-in and quiet lunch',
+          type: 'stay',
+        },
+      ],
+    },
+  }
+
   const services: AppServices = {
     async getContextByUserId() {
       return context as any
@@ -117,73 +187,34 @@ function createTestServices() {
       return recentItems as any
     },
     async getGroupsDashboardByUser(userId) {
-      return {
-        groups: [
-          {
-            id: 'group_core_weekend',
-            name: 'Core Weekend Circle',
-            role: 'HOST',
-            memberCount: 4,
-            pendingVotes: 2,
-            nextDecisionAt: '2026-03-31T18:00:00.000Z',
-          },
-          {
-            id: 'group_sunset_reset',
-            name: 'Sunset Reset Crew',
-            role: 'MEMBER',
-            memberCount: 3,
-            pendingVotes: 1,
-            nextDecisionAt: '2026-03-30T19:30:00.000Z',
-          },
-        ],
+      groupsDashboard.activePlan.participants = groupsDashboard.activePlan.participants.map((participant) =>
+        participant.userId === userId
+          ? { ...participant, displayName: 'You' }
+          : participant,
+      )
+      return groupsDashboard as any
+    },
+    async submitPlanVoteForUser(_userId, optionId) {
+      groupsDashboard = {
+        ...groupsDashboard,
         activePlan: {
-          id: 'plan_akosombo_retreat',
-          groupId: 'group_core_weekend',
-          title: 'Akosombo Reset',
-          status: 'VOTING',
-          window: {
-            start: '2026-04-04T09:00:00.000Z',
-            end: '2026-04-05T19:00:00.000Z',
-          },
-          participants: [
-            { userId, displayName: 'You', voteStatus: 'SUBMITTED' },
-            { userId: 'member_2', displayName: 'Nana', voteStatus: 'PENDING' },
-            { userId: 'member_3', displayName: 'Ama', voteStatus: 'SUBMITTED' },
-          ],
-          options: [
-            {
-              id: 'option_river_lodge',
-              title: 'Riverfront Lodge',
-              category: 'stay',
-              score: 92,
-              votes: 2,
-              whyItFits: 'Calm water views, low travel fatigue, and enough privacy for recovery.',
-            },
-            {
-              id: 'option_hill_trails',
-              title: 'Hill Trails + Picnic',
-              category: 'activity',
-              score: 87,
-              votes: 1,
-              whyItFits: 'Balances movement with quiet downtime and works for mixed energy levels.',
-            },
-          ],
-          itineraryDraft: [
-            {
-              id: 'itinerary_departure',
-              startsAt: '2026-04-04T09:00:00.000Z',
-              title: 'Departure from Accra',
-              type: 'travel',
-            },
-            {
-              id: 'itinerary_checkin',
-              startsAt: '2026-04-04T12:00:00.000Z',
-              title: 'Lodge check-in and quiet lunch',
-              type: 'stay',
-            },
-          ],
+          ...groupsDashboard.activePlan,
+          participants: groupsDashboard.activePlan.participants.map((participant) =>
+            participant.displayName === 'You'
+              ? { ...participant, voteStatus: 'SUBMITTED' as const }
+              : participant,
+          ),
+          options: groupsDashboard.activePlan.options.map((option) => {
+            const wasSelected = option.isSelectedByUser
+            const isSelected = option.id === optionId
+            return {
+              ...option,
+              isSelectedByUser: isSelected,
+              votes: isSelected ? option.votes + (wasSelected ? 0 : 1) : Math.max(0, option.votes - (wasSelected ? 1 : 0)),
+            }
+          }),
         },
-      } as any
+      }
     },
     async getSafetyDashboardByUser(userId) {
       return {
@@ -414,6 +445,23 @@ test('group planning dashboard returns active plan context', async () => {
     assert.equal(body.groups.length, 2)
     assert.equal(body.activePlan.status, 'VOTING')
     assert.equal(body.activePlan.options.length, 2)
+  })
+})
+
+test('group planning vote route returns refreshed dashboard', async () => {
+  await withApp(async (app) => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/groups/options/option_hill_trails/votes',
+      headers: { 'x-dev-bypass': 'true' },
+    })
+
+    assert.equal(response.statusCode, 200)
+    const body = response.json()
+    const selectedOption = body.activePlan.options.find((option: any) => option.id === 'option_hill_trails')
+    const previousOption = body.activePlan.options.find((option: any) => option.id === 'option_river_lodge')
+    assert.equal(selectedOption.isSelectedByUser, true)
+    assert.equal(previousOption.isSelectedByUser, false)
   })
 })
 

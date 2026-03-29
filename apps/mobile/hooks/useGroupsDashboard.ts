@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/clerk-expo'
-import { useQuery } from 'react-query'
+import { useMutation, useQuery, useQueryClient } from 'react-query'
 import { createApiClient } from '@/lib/api'
 
 export type GroupSummary = {
@@ -24,6 +24,7 @@ export type GroupPlanOption = {
   score: number
   votes: number
   whyItFits: string
+  isSelectedByUser: boolean
 }
 
 export type GroupPlanItineraryItem = {
@@ -52,6 +53,7 @@ export type GroupsDashboard = {
 
 export function useGroupsDashboard() {
   const { getToken } = useAuth()
+  const queryClient = useQueryClient()
 
   const query = useQuery<GroupsDashboard, Error>(
     ['groups-dashboard'],
@@ -64,10 +66,24 @@ export function useGroupsDashboard() {
     },
   )
 
+  const voteMutation = useMutation<GroupsDashboard, Error, { optionId: string }>(
+    async ({ optionId }) => {
+      const api = createApiClient(getToken)
+      return api.post(`/api/groups/options/${optionId}/votes`, {})
+    },
+    {
+      onSuccess: (nextDashboard) => {
+        queryClient.setQueryData(['groups-dashboard'], nextDashboard)
+      },
+    },
+  )
+
   return {
     dashboard: query.data ?? null,
     isLoading: query.isLoading,
-    error: query.error?.message ?? null,
+    error: query.error?.message ?? voteMutation.error?.message ?? null,
+    isSubmittingVote: voteMutation.isLoading,
+    submitVote: async (optionId: string) => voteMutation.mutateAsync({ optionId }),
     refetch: query.refetch,
   }
 }

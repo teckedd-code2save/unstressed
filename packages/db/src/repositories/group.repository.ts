@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { prisma } from '../index'
 
 export type GroupDashboard = {
@@ -30,6 +31,7 @@ export type GroupDashboard = {
       score: number
       votes: number
       whyItFits: string
+      isSelectedByUser: boolean
     }>
     itineraryDraft: Array<{
       id: string
@@ -122,7 +124,15 @@ export async function getGroupsDashboardByUser(userId: string): Promise<GroupDas
   `
 
   const options = await prisma.$queryRaw<
-    Array<{ id: string; title: string; category: string; score: number; votes: bigint; whyItFits: string | null }>
+    Array<{
+      id: string
+      title: string
+      category: string
+      score: number
+      votes: bigint
+      whyItFits: string | null
+      isSelectedByUser: boolean
+    }>
   >`
     SELECT
       gpo."id",
@@ -130,7 +140,8 @@ export async function getGroupsDashboardByUser(userId: string): Promise<GroupDas
       gpo."category",
       gpo."score",
       COUNT(pv."id")::bigint AS "votes",
-      gpo."whyItFits"
+      gpo."whyItFits",
+      COALESCE(BOOL_OR(pv."userId" = ${userId}), false) AS "isSelectedByUser"
     FROM "group_plan_options" gpo
     LEFT JOIN "plan_votes" pv ON pv."optionId" = gpo."id"
     WHERE gpo."planId" = ${activePlan.id}
@@ -177,6 +188,7 @@ export async function getGroupsDashboardByUser(userId: string): Promise<GroupDas
         score: option.score,
         votes: Number(option.votes),
         whyItFits: option.whyItFits ?? 'Pending refinement.',
+        isSelectedByUser: option.isSelectedByUser,
       })),
       itineraryDraft: itineraryDraft.map((item) => ({
         id: item.id,
@@ -186,4 +198,36 @@ export async function getGroupsDashboardByUser(userId: string): Promise<GroupDas
       })),
     },
   }
+}
+
+export async function submitPlanVoteForUser(userId: string, optionId: string): Promise<void> {
+  const [selection] = await prisma.$queryRaw<Array<{ planId: string }>>`
+    SELECT gpo."planId"
+    FROM "group_plan_options" gpo
+    INNER JOIN "group_plans" gp ON gp."id" = gpo."planId"
+    INNER JOIN "group_members" gm ON gm."groupId" = gp."groupId"
+    WHERE gpo."id" = ${optionId}
+      AND gm."userId" = ${userId}
+      AND gp."status" IN ('DRAFT', 'VOTING')
+    LIMIT 1
+  `
+
+  if (!selection) {
+    throw new Error('Group plan option not found for this user')
+  }
+
+  await prisma.$executeRaw`
+    DELETE FROM "plan_votes"
+    WHERE "userId" = ${userId}
+      AND "optionId" IN (
+        SELECT "id"
+        FROM "group_plan_options"
+        WHERE "planId" = ${selection.planId}
+      )
+  `
+
+  await prisma.$executeRaw`
+    INSERT INTO "plan_votes" ("id", "optionId", "userId", "vote", "createdAt")
+    VALUES (${`vote_${randomUUID()}`}, ${optionId}, ${userId}, 1, NOW())
+  `
 }

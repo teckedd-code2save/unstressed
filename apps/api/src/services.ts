@@ -5,6 +5,7 @@ import {
   getCollectionsByUser,
   getRecentlySavedItems,
   getGroupsDashboardByUser,
+  submitPlanVoteForUser,
   getSafetyDashboardByUser,
   createSafetyCheckIn,
   createCollection,
@@ -20,6 +21,7 @@ export type AppServices = {
   getCollectionsByUser: typeof getCollectionsByUser
   getRecentlySavedItems: typeof getRecentlySavedItems
   getGroupsDashboardByUser: typeof getGroupsDashboardByUser
+  submitPlanVoteForUser: typeof submitPlanVoteForUser
   getSafetyDashboardByUser: typeof getSafetyDashboardByUser
   createSafetyCheckIn: typeof createSafetyCheckIn
   createCollection: typeof createCollection
@@ -36,6 +38,7 @@ export const defaultServices: AppServices = {
   getCollectionsByUser,
   getRecentlySavedItems,
   getGroupsDashboardByUser,
+  submitPlanVoteForUser,
   getSafetyDashboardByUser,
   createSafetyCheckIn,
   createCollection,

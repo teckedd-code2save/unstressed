@@ -10,12 +10,14 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useUser } from '@clerk/clerk-expo'
+import { useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRightNow } from '@/hooks/useRightNow'
 import { formatTimeOfDay, getEnergyEmoji } from '@/lib/utils'
 
 export default function RightNowScreen() {
   const { user } = useUser()
+  const router = useRouter()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
   const { data, isLoading } = useRightNow()
@@ -25,8 +27,28 @@ export default function RightNowScreen() {
   const textPrimary = isDark ? 'text-dark-on-surface' : 'text-on-surface'
   const textSecondary = isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant'
   const accentColor = isDark ? '#93d2d1' : '#156a67'
-  const showPlannedFeature = (feature: string) => {
-    Alert.alert('In progress', `${feature} is part of the next implementation slice.`)
+
+  const openSearch = (seedQuery?: string, seedMoods?: string[]) => {
+    router.push({
+      pathname: '/(tabs)/search',
+      params: {
+        ...(seedQuery?.trim() ? { q: seedQuery.trim() } : {}),
+        ...(seedMoods?.length ? { moods: seedMoods.join('|') } : {}),
+      },
+    })
+  }
+
+  const openForecast = () => {
+    const items = data?.upcomingMomentum ?? []
+    if (!items.length) {
+      Alert.alert('Upcoming Momentum', 'No forecast is available yet.')
+      return
+    }
+
+    Alert.alert(
+      'Upcoming Momentum',
+      items.map((item) => `${item.time}  ${item.title}\n${item.description}`).join('\n\n'),
+    )
   }
 
   return (
@@ -53,7 +75,7 @@ export default function RightNowScreen() {
             Unstressed
           </Text>
         </View>
-        <Pressable className="p-1" onPress={() => showPlannedFeature('Settings')}>
+        <Pressable className="p-1" onPress={() => router.push('/(tabs)/context')}>
           <Text style={{ fontSize: 18 }}>⚙️</Text>
         </Pressable>
       </View>
@@ -106,7 +128,7 @@ export default function RightNowScreen() {
             {data?.heroSuggestion && (
               <Pressable
                 className="rounded-2xl overflow-hidden mb-4 active:opacity-90"
-                onPress={() => showPlannedFeature(data.heroSuggestion?.title ?? 'This suggestion')}
+                onPress={() => openSearch(data.heroSuggestion?.title, data.moodTags)}
               >
                 {data.heroSuggestion.imageUrl ? (
                   <Image
@@ -141,7 +163,7 @@ export default function RightNowScreen() {
                     </Text>
                   </View>
                   <Pressable
-                    onPress={() => showPlannedFeature(data.heroSuggestion?.title ?? 'This suggestion')}
+                    onPress={() => openSearch(data.heroSuggestion?.title, data.moodTags)}
                     className="rounded-full px-4 py-2 items-center justify-center"
                     style={{ backgroundColor: accentColor }}
                   >
@@ -211,7 +233,7 @@ export default function RightNowScreen() {
                   {data.recommendation.subtitle}
                 </Text>
                 <Pressable
-                  onPress={() => showPlannedFeature(data.recommendation?.title ?? 'This recommendation')}
+                  onPress={() => openSearch(data.recommendation?.title, data.moodTags)}
                   className="mt-4 rounded-full py-3 items-center active:opacity-80"
                   style={{ backgroundColor: accentColor }}
                 >
@@ -237,7 +259,7 @@ export default function RightNowScreen() {
                 >
                   Upcoming Momentum
                 </Text>
-                <Pressable onPress={() => showPlannedFeature('Full forecast')}>
+                <Pressable onPress={openForecast}>
                   <Text style={{ fontFamily: 'Manrope_600SemiBold', fontSize: 13, color: accentColor }}>
                     Full Forecast →
                   </Text>
@@ -305,7 +327,7 @@ export default function RightNowScreen() {
                 </Text>
                 <View className="flex-row gap-3 mt-4">
                   <Pressable
-                    onPress={() => showPlannedFeature('Optimization actions')}
+                    onPress={() => router.push('/(tabs)/context')}
                     className="flex-1 rounded-full py-3 items-center active:opacity-80"
                     style={{ backgroundColor: accentColor }}
                   >
@@ -320,7 +342,7 @@ export default function RightNowScreen() {
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => showPlannedFeature('Insight acknowledgement')}
+                    onPress={() => Alert.alert('Saved', 'We will keep adapting suggestions to this energy pattern.')}
                     className="flex-1 rounded-full py-3 items-center border border-outline/30 active:opacity-80"
                   >
                     <Text

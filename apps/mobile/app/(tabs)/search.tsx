@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useLocalSearchParams } from 'expo-router'
 import { useSearch } from '@/hooks/useSearch'
 import { debounce } from '@/lib/utils'
 
@@ -26,6 +27,7 @@ const MOOD_FILTERS = [
 export default function SearchScreen() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
+  const params = useLocalSearchParams<{ q?: string; moods?: string }>()
   const [query, setQuery] = useState('')
   const [activeMoods, setActiveMoods] = useState<string[]>([])
   const { results, isLoading, search } = useSearch()
@@ -43,6 +45,20 @@ export default function SearchScreen() {
     debounce((q: string, moods: string[]) => search(q, moods), 400),
     [search],
   )
+
+  useEffect(() => {
+    const seededQuery = typeof params.q === 'string' ? params.q : ''
+    const seededMoods =
+      typeof params.moods === 'string'
+        ? params.moods.split('|').map((mood) => mood.trim()).filter(Boolean)
+        : []
+
+    if (!seededQuery && !seededMoods.length) return
+
+    setQuery(seededQuery)
+    setActiveMoods(seededMoods)
+    search(seededQuery, seededMoods)
+  }, [params.moods, params.q, search])
 
   const handleQueryChange = (text: string) => {
     setQuery(text)

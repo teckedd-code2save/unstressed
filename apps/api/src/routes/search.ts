@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { searchGroundedPlaces, type GroundedPlace } from '../lib/places.js'
 
 function fallbackSearch(query: string, moodFilters: string[]) {
   return [
@@ -53,64 +54,148 @@ function fallbackSearch(query: string, moodFilters: string[]) {
   ]
 }
 
+function normalizeNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function moodTagsForPlace(place: GroundedPlace) {
+  if (place.types.includes('library')) return ['Deep Focus', 'Solitude']
+  if (place.types.includes('park') || place.types.includes('botanical_garden')) return ['Nature Escape', 'Solitude']
+  if (place.types.includes('spa')) return ['Restorative Sleep', 'Solitude']
+  if (place.types.includes('art_gallery') || place.types.includes('museum')) return ['Creative Flow', 'Solitude']
+  if (place.types.includes('bar') || place.types.includes('restaurant')) return ['Vibrant Energy', 'Creative Flow']
+  return ['Deep Focus', 'Creative Flow']
+}
+
+function contextTagsForPlace(place: GroundedPlace, energyLevel: string) {
+  const tags: string[] = []
+  if (place.isOpenNow) tags.push('Open Now')
+  if (typeof place.rating === 'number' && place.rating >= 4.5) tags.push('Top Rated')
+  if (typeof place.distanceMins === 'number' && place.distanceMins <= 15) tags.push('Nearby')
+  if (energyLevel === 'low') tags.push('Low Stimulus')
+  if (!tags.length) tags.push('Fits Your Rhythm')
+  return tags.slice(0, 3)
+}
+
+function describePlace(place: GroundedPlace) {
+  if (place.types.includes('library')) return 'A quiet reading room with enough structure to help your attention settle.'
+  if (place.types.includes('park') || place.types.includes('botanical_garden')) return 'Open air, softer stimulation, and room to let your nervous system slow down.'
+  if (place.types.includes('spa')) return 'A restorative wellness stop designed for slower breathing and recovery.'
+  if (place.types.includes('art_gallery') || place.types.includes('museum')) return 'A visually rich but calm environment that supports reflection without chaos.'
+  if (place.types.includes('coffee_shop') || place.types.includes('cafe')) return 'A calm cafe atmosphere with enough ambient energy to keep you moving without overload.'
+  return 'A nearby place that matches your current pace better than a loud or crowded alternative.'
+}
+
+function whyItFits(place: GroundedPlace, energyLevel: string, moodFilters: string[], query: string) {
+  const moodLead = moodFilters[0] ? `${moodFilters[0]} matters right now` : 'Your current state calls for a more intentional environment'
+  const distanceLead = typeof place.distanceMins === 'number' ? ` and this is about ${place.distanceMins} minutes away` : ''
+  const queryLead = query ? ` for “${query}”` : ''
+  const energyLead =
+    energyLevel === 'low'
+      ? 'It keeps stimulation manageable while still getting you out of your current loop.'
+      : energyLevel === 'high'
+        ? 'It gives your momentum somewhere useful to land without becoming noisy.'
+        : 'It supports a steady pace without pulling your energy too far in either direction.'
+  return `${moodLead}${queryLead}${distanceLead}. ${energyLead}`
+}
+
+function mapGroundedPlacesToResults(places: GroundedPlace[], energyLevel: string, moodFilters: string[], query: string) {
+  return places.map((place) => ({
+    id: place.id,
+    title: place.title,
+    description: describePlace(place),
+    imageUrl: place.imageUrl,
+    contextTags: contextTagsForPlace(place, energyLevel),
+    moodTags: moodTagsForPlace(place),
+    distanceMins: place.distanceMins ?? 15,
+    whyItFits: whyItFits(place, energyLevel, moodFilters, query),
+  }))
+}
+
+function mapSavedSuggestionsToResults(
+  suggestions: Awaited<ReturnType<FastifyInstance['services']['getSuggestionsForUser']>>,
+  query: string,
+  moodFilters: string[],
+) {
+  const lowerQuery = query.trim().toLowerCase()
+  const lowerMoods = moodFilters.map((mood) => mood.toLowerCase())
+  const matched = suggestions.filter((suggestion) => {
+    const haystack = [suggestion.title, suggestion.description, suggestion.location ?? '', suggestion.whyItFits ?? '']
+      .join(' ')
+      .toLowerCase()
+    const moodMatch = !lowerMoods.length || suggestion.moodTags.some((tag) => lowerMoods.includes(tag.toLowerCase()))
+    const queryMatch = !lowerQuery || haystack.includes(lowerQuery)
+    return moodMatch && queryMatch
+  })
+
+  return matched.slice(0, 6).map((suggestion) => ({
+    id: suggestion.id,
+    title: suggestion.title,
+    description: suggestion.description,
+    imageUrl: suggestion.imageUrl,
+    contextTags: suggestion.contextTags,
+    moodTags: suggestion.moodTags,
+    distanceMins: suggestion.distanceMins ?? 15,
+    whyItFits: suggestion.whyItFits,
+  }))
+}
+
 export async function searchRoute(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
     const userId = (request as any).userId as string
-    const { query, moodFilters } = request.body as {
+    const { query, moodFilters, lat, lng } = request.body as {
       query?: string
       moodFilters?: string[]
+      lat?: number | string
+      lng?: number | string
     }
 
     const context = await app.services.getContextByUserId(userId)
-
-    const prompt = `You are Unstressed's intelligent search engine. You understand mood, energy, and context — not just keywords.
-
-User context: energy level ${context?.energyLevel ?? 'medium'}, preferred sanctuaries: ${context?.preferredSanctuaries?.join(', ') || 'not set'}.
-Search query: "${query ?? ''}"
-Mood filters: ${moodFilters?.join(', ') || 'none'}
-
-Return 4 sanctuary/place suggestions as JSON array:
-[
-  {
-    "id": "unique-id-1",
-    "title": "Place or experience name",
-    "description": "2-3 sentence evocative description",
-    "imageUrl": null,
-    "contextTags": ["Fits Your Budget", "Matches Your Energy Level"],
-    "moodTags": ["Deep Focus", "Solitude"],
-    "distanceMins": 15,
-    "whyItFits": "Personalized explanation of why this fits the user's current context (2-3 sentences)"
-  }
-]
-Respond with ONLY valid JSON array.`
+    const normalizedLat = normalizeNumber(lat)
+    const normalizedLng = normalizeNumber(lng)
+    const normalizedQuery = query ?? ''
+    const normalizedMoodFilters = moodFilters ?? []
 
     try {
-      const anthropic = app.services.createAnthropicClient()
-      if (!anthropic) throw new Error('ANTHROPIC_API_KEY is not configured')
+      const groundedPlaces =
+        normalizedLat !== null && normalizedLng !== null
+          ? await searchGroundedPlaces({
+              lat: normalizedLat,
+              lng: normalizedLng,
+              query: normalizedQuery,
+              moodFilters: normalizedMoodFilters,
+              preferredSanctuaries: context?.preferredSanctuaries ?? [],
+            })
+          : []
 
-      const message = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
-        messages: [{ role: 'user', content: prompt }],
-      })
+      const results =
+        groundedPlaces.length > 0
+          ? mapGroundedPlacesToResults(
+              groundedPlaces,
+              context?.energyLevel ?? 'medium',
+              normalizedMoodFilters,
+              normalizedQuery,
+            )
+          : mapSavedSuggestionsToResults(
+              await app.services.getSuggestionsForUser(userId, 8),
+              normalizedQuery,
+              normalizedMoodFilters,
+            )
 
-      const content = message.content[0]
-      if (content.type !== 'text') return reply.code(500).send({ error: 'AI error' })
-
-      // Strip markdown code fences if present
-      const text = content.text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-      const results = JSON.parse(text)
-
-      // Log the search
-      await app.services.logSearchQuery(userId, query, moodFilters ?? [], results.length)
-
-      return reply.send({ results })
+      const finalResults = results.length > 0 ? results : fallbackSearch(normalizedQuery, normalizedMoodFilters)
+      await app.services.logSearchQuery(userId, normalizedQuery, normalizedMoodFilters, finalResults.length)
+      return reply.send({ results: finalResults })
     } catch (err: any) {
-      app.log.warn({ err: err?.message }, 'AI unavailable — serving fallback search')
-      const results = fallbackSearch(query ?? '', moodFilters ?? [])
+      app.log.warn({ err: err?.message }, 'Grounded search unavailable — serving fallback search')
+      const results = fallbackSearch(normalizedQuery, normalizedMoodFilters)
       try {
-        await app.services.logSearchQuery(userId, query, moodFilters ?? [], results.length)
-      } catch (_) {}
+        await app.services.logSearchQuery(userId, normalizedQuery, normalizedMoodFilters, results.length)
+      } catch {}
       return reply.send({ results })
     }
   })

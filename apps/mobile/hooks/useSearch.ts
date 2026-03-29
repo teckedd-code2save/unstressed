@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useAuth } from '@clerk/clerk-expo'
 import { createApiClient } from '@/lib/api'
+import { getBestEffortLocation } from '@/lib/location'
 
 export type SearchResult = {
   id: string
@@ -29,7 +30,17 @@ export function useSearch() {
       setError(null)
       try {
         const api = createApiClient(getToken)
-        const data = await api.post('/api/search', { query, moodFilters })
+        const location = await getBestEffortLocation()
+        const data = await api.post('/api/search', {
+          query,
+          moodFilters,
+          ...(location
+            ? {
+                lat: location.latitude,
+                lng: location.longitude,
+              }
+            : {}),
+        })
         setResults(data.results ?? [])
       } catch (err: any) {
         setError(err.message)

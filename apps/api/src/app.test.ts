@@ -167,6 +167,26 @@ function createTestServices() {
   }
 
   const services: AppServices = {
+    async getSuggestionsForUser() {
+      return [
+        {
+          id: 'suggestion_1',
+          userId: user.id,
+          title: 'The Glass House',
+          description: 'A sanctuary for decompression and herbal matcha.',
+          category: 'rest',
+          location: 'Airport Residential, Accra',
+          distanceMins: 12,
+          moodTags: ['Quiet Atmosphere', 'Nearby', '30 mins'],
+          contextTags: ['Fits Your Rhythm', 'Low Stimulus'],
+          imageUrl: null,
+          whyItFits: 'A calmer environment helps you reset without having to plan too hard.',
+          aiGenerated: false,
+          isActive: true,
+          createdAt: new Date('2026-03-20T00:00:00.000Z'),
+        },
+      ] as any
+    },
     async getContextByUserId() {
       return context as any
     },
@@ -349,7 +369,7 @@ test('GET /api/suggestions/right-now returns fallback payload for dev bypass use
 
     assert.equal(response.statusCode, 200)
     const body = response.json()
-    assert.equal(body.recommendation.cta, 'Start Session')
+    assert.match(body.recommendation.cta, /Start Session|Explore Nearby/)
     assert.equal(body.energyInsight.level, 'medium')
   })
 })

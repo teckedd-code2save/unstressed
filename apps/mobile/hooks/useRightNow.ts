@@ -1,6 +1,7 @@
 import { useAuth } from '@clerk/clerk-expo'
 import { useQuery } from 'react-query'
 import { createApiClient } from '@/lib/api'
+import { getBestEffortLocation } from '@/lib/location'
 
 export type MomentumItem = {
   time: string
@@ -40,7 +41,16 @@ export function useRightNow() {
     ['right-now'],
     async () => {
       const api = createApiClient(getToken)
-      return api.get('/api/suggestions/right-now')
+      const location = await getBestEffortLocation()
+      const searchParams = new URLSearchParams()
+      if (location) {
+        searchParams.set('lat', String(location.latitude))
+        searchParams.set('lng', String(location.longitude))
+      }
+      const path = searchParams.toString()
+        ? `/api/suggestions/right-now?${searchParams.toString()}`
+        : '/api/suggestions/right-now'
+      return api.get(path)
     },
     {
       staleTime: 60_000,

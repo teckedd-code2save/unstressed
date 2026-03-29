@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import {
+  getSuggestionsForUser,
   getContextByUserId,
   upsertContext,
   getCollectionsByUser,
@@ -17,6 +18,7 @@ import {
 
 export type AppServices = {
   getContextByUserId: typeof getContextByUserId
+  getSuggestionsForUser: typeof getSuggestionsForUser
   upsertContext: typeof upsertContext
   getCollectionsByUser: typeof getCollectionsByUser
   getRecentlySavedItems: typeof getRecentlySavedItems
@@ -33,6 +35,7 @@ export type AppServices = {
 }
 
 export const defaultServices: AppServices = {
+  getSuggestionsForUser,
   getContextByUserId,
   upsertContext,
   getCollectionsByUser,

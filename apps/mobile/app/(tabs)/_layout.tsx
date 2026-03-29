@@ -2,11 +2,12 @@ import { Tabs } from 'expo-router'
 import { useColorScheme, View, Text } from 'react-native'
 import type { ColorSchemeName } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 
 type TabIconProps = {
   focused: boolean
   colorScheme: ColorSchemeName
-  icon: string
+  icon: keyof typeof MaterialCommunityIcons.glyphMap
   label: string
 }
 
@@ -16,14 +17,28 @@ function TabIcon({ focused, colorScheme, icon, label }: TabIconProps) {
   const inactiveColor = isDark ? '#bfc8c8' : '#5d605c'
 
   return (
-    <View className="items-center justify-center pt-2">
-      <Text style={{ fontSize: 20, color: focused ? activeColor : inactiveColor }}>{icon}</Text>
+    <View className="items-center justify-center pt-1">
+      <View
+        className="items-center justify-center rounded-full"
+        style={{
+          minWidth: 40,
+          height: 30,
+          paddingHorizontal: 10,
+          backgroundColor: focused ? (isDark ? '#153a39' : '#dcefed') : 'transparent',
+        }}
+      >
+        <MaterialCommunityIcons
+          name={icon}
+          size={20}
+          color={focused ? activeColor : inactiveColor}
+        />
+      </View>
       <Text
         style={{
           fontFamily: 'Manrope_600SemiBold',
-          fontSize: 10,
+          fontSize: 9,
           color: focused ? activeColor : inactiveColor,
-          marginTop: 2,
+          marginTop: 4,
           letterSpacing: 0.5,
           textTransform: 'uppercase',
         }}
@@ -44,12 +59,15 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: isDark ? '#1e201e' : '#faf9f6',
+          backgroundColor: isDark ? '#161816' : '#fcfbf8',
           borderTopWidth: 0,
           elevation: 0,
-          shadowOpacity: 0,
-          height: 60 + insets.bottom,
-          paddingBottom: insets.bottom,
+          shadowOpacity: 0.08,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: -6 },
+          height: 68 + insets.bottom,
+          paddingBottom: insets.bottom + 6,
+          paddingTop: 6,
         },
         tabBarActiveTintColor: isDark ? '#93d2d1' : '#156a67',
         tabBarInactiveTintColor: isDark ? '#bfc8c8' : '#5d605c',
@@ -60,7 +78,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} colorScheme={colorScheme} icon="⚡" label="Right Now" />
+            <TabIcon focused={focused} colorScheme={colorScheme} icon="lightning-bolt-outline" label="Right Now" />
           ),
         }}
       />
@@ -68,7 +86,7 @@ export default function TabsLayout() {
         name="search"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} colorScheme={colorScheme} icon="🔍" label="Search" />
+            <TabIcon focused={focused} colorScheme={colorScheme} icon="magnify" label="Search" />
           ),
         }}
       />
@@ -76,7 +94,7 @@ export default function TabsLayout() {
         name="collections"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} colorScheme={colorScheme} icon="🗂" label="Collections" />
+            <TabIcon focused={focused} colorScheme={colorScheme} icon="bookmark-multiple-outline" label="Collections" />
           ),
         }}
       />
@@ -84,7 +102,7 @@ export default function TabsLayout() {
         name="context"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} colorScheme={colorScheme} icon="◎" label="Context" />
+            <TabIcon focused={focused} colorScheme={colorScheme} icon="tune-variant" label="Context" />
           ),
         }}
       />
@@ -92,7 +110,7 @@ export default function TabsLayout() {
         name="groups"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} colorScheme={colorScheme} icon="◌" label="Groups" />
+            <TabIcon focused={focused} colorScheme={colorScheme} icon="account-group-outline" label="Groups" />
           ),
         }}
       />
@@ -100,7 +118,7 @@ export default function TabsLayout() {
         name="safety"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} colorScheme={colorScheme} icon="▲" label="Safety" />
+            <TabIcon focused={focused} colorScheme={colorScheme} icon="shield-check-outline" label="Safety" />
           ),
         }}
       />

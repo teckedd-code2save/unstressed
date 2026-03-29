@@ -4,6 +4,8 @@ import { suggestionsRoute } from './routes/suggestions.js'
 import { searchRoute } from './routes/search.js'
 import { collectionsRoute } from './routes/collections.js'
 import { contextRoute } from './routes/context.js'
+import { groupsRoute } from './routes/groups.js'
+import { safetyRoute } from './routes/safety.js'
 import { webhooksRoute } from './routes/webhooks.js'
 import { authMiddleware } from './middleware/auth.js'
 import type { AppServices } from './services.js'
@@ -34,6 +36,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
   await app.register(searchRoute, { prefix: '/api/search' })
   await app.register(collectionsRoute, { prefix: '/api/collections' })
   await app.register(contextRoute, { prefix: '/api/context' })
+  await app.register(groupsRoute, { prefix: '/api/groups' })
+  await app.register(safetyRoute, { prefix: '/api/safety' })
   await app.register(webhooksRoute, { prefix: '/webhooks' })
 
   app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))

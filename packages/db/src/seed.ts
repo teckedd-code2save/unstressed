@@ -200,6 +200,182 @@ async function seed() {
   })
   console.log('✅ Search history seeded')
 
+  const closeFriendsCircle = await prisma.$queryRaw<Array<{ id: string }>>`
+    INSERT INTO "safety_circles" ("id", "ownerUserId", "name", "liveShareEnabled", "quietCheckInIntervalMins", "createdAt", "updatedAt")
+    VALUES ('circle_close_friends', ${user.id}, 'Close Friends', true, 90, NOW(), NOW())
+    ON CONFLICT ("id") DO UPDATE
+    SET "name" = EXCLUDED."name",
+        "liveShareEnabled" = EXCLUDED."liveShareEnabled",
+        "quietCheckInIntervalMins" = EXCLUDED."quietCheckInIntervalMins",
+        "updatedAt" = NOW()
+    RETURNING "id"
+  `
+
+  await prisma.$executeRaw`
+    INSERT INTO "safety_circle_members" ("id", "circleId", "userId", "role", "joinedAt")
+    VALUES
+      ('scm_owner_demo', ${closeFriendsCircle[0]!.id}, ${user.id}, 'OWNER'::"SafetyCircleRole", NOW())
+    ON CONFLICT ("circleId", "userId") DO NOTHING
+  `
+
+  await prisma.$executeRaw`
+    INSERT INTO "location_shares" ("id", "circleId", "ownerUserId", "status", "destinationLabel", "startedAt", "expiresAt", "createdAt")
+    VALUES (
+      'share_evening_walk',
+      ${closeFriendsCircle[0]!.id},
+      ${user.id},
+      'ACTIVE'::"LocationShareStatus",
+      'Airport Residential evening walk',
+      NOW() - INTERVAL '20 minutes',
+      NOW() + INTERVAL '2 hours',
+      NOW() - INTERVAL '20 minutes'
+    )
+    ON CONFLICT ("id") DO UPDATE
+    SET "status" = EXCLUDED."status",
+        "destinationLabel" = EXCLUDED."destinationLabel",
+        "expiresAt" = EXCLUDED."expiresAt"
+  `
+
+  await prisma.$executeRaw`
+    INSERT INTO "safety_check_ins" ("id", "circleId", "userId", "status", "note", "createdAt")
+    VALUES (
+      'checkin_1',
+      ${closeFriendsCircle[0]!.id},
+      ${user.id},
+      'SAFE'::"SafetyCheckInStatus",
+      'Reached the cafe, battery is fine.',
+      NOW() - INTERVAL '15 minutes'
+    )
+    ON CONFLICT ("id") DO UPDATE
+    SET "status" = EXCLUDED."status",
+        "note" = EXCLUDED."note",
+        "createdAt" = EXCLUDED."createdAt"
+  `
+
+  const [weekendGroup] = await prisma.$queryRaw<Array<{ id: string }>>`
+    INSERT INTO "groups" ("id", "name", "description", "hostUserId", "status", "createdAt", "updatedAt")
+    VALUES (
+      'group_core_weekend',
+      'Core Weekend Circle',
+      'Shared planning for low-stress weekend resets.',
+      ${user.id},
+      'ACTIVE'::"GroupStatus",
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT ("id") DO UPDATE
+    SET "name" = EXCLUDED."name",
+        "description" = EXCLUDED."description",
+        "status" = EXCLUDED."status",
+        "updatedAt" = NOW()
+    RETURNING "id"
+  `
+
+  await prisma.$executeRaw`
+    INSERT INTO "group_members" ("id", "groupId", "userId", "role", "notificationsEnabled", "joinedAt")
+    VALUES ('gm_owner_demo', ${weekendGroup.id}, ${user.id}, 'HOST'::"GroupMemberRole", true, NOW())
+    ON CONFLICT ("groupId", "userId") DO NOTHING
+  `
+
+  const [activePlan] = await prisma.$queryRaw<Array<{ id: string }>>`
+    INSERT INTO "group_plans" ("id", "groupId", "createdByUserId", "title", "notes", "status", "windowStart", "windowEnd", "createdAt", "updatedAt")
+    VALUES (
+      'plan_akosombo_retreat',
+      ${weekendGroup.id},
+      ${user.id},
+      'Akosombo Reset',
+      'Quiet itinerary with movement, rest, and consensus voting.',
+      'VOTING'::"GroupPlanStatus",
+      TIMESTAMP '2026-04-04 09:00:00',
+      TIMESTAMP '2026-04-05 19:00:00',
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT ("id") DO UPDATE
+    SET "title" = EXCLUDED."title",
+        "notes" = EXCLUDED."notes",
+        "status" = EXCLUDED."status",
+        "windowStart" = EXCLUDED."windowStart",
+        "windowEnd" = EXCLUDED."windowEnd",
+        "updatedAt" = NOW()
+    RETURNING "id"
+  `
+
+  await prisma.$executeRaw`
+    INSERT INTO "group_plan_options" ("id", "planId", "title", "description", "category", "score", "whyItFits", "createdByUserId", "createdAt")
+    VALUES
+      (
+        'option_river_lodge',
+        ${activePlan.id},
+        'Riverfront Lodge',
+        'Private rooms, quiet waterfront, and low travel fatigue.',
+        'stay',
+        92,
+        'Calm water views, low travel fatigue, and enough privacy for recovery.',
+        ${user.id},
+        NOW()
+      ),
+      (
+        'option_hill_trails',
+        ${activePlan.id},
+        'Hill Trails + Picnic',
+        'Gentle movement with a flexible recovery window after lunch.',
+        'activity',
+        87,
+        'Balances movement with quiet downtime and works for mixed energy levels.',
+        ${user.id},
+        NOW()
+      )
+    ON CONFLICT ("id") DO UPDATE
+    SET "title" = EXCLUDED."title",
+        "description" = EXCLUDED."description",
+        "category" = EXCLUDED."category",
+        "score" = EXCLUDED."score",
+        "whyItFits" = EXCLUDED."whyItFits"
+  `
+
+  await prisma.$executeRaw`
+    INSERT INTO "plan_votes" ("id", "optionId", "userId", "vote", "createdAt")
+    VALUES ('vote_demo_river_lodge', 'option_river_lodge', ${user.id}, 1, NOW())
+    ON CONFLICT ("optionId", "userId") DO UPDATE
+    SET "vote" = EXCLUDED."vote",
+        "createdAt" = EXCLUDED."createdAt"
+  `
+
+  await prisma.$executeRaw`
+    INSERT INTO "group_itinerary_items" ("id", "planId", "sequence", "startsAt", "endsAt", "title", "type", "notes", "createdAt")
+    VALUES
+      (
+        'itinerary_departure',
+        ${activePlan.id},
+        1,
+        TIMESTAMP '2026-04-04 09:00:00',
+        TIMESTAMP '2026-04-04 11:30:00',
+        'Departure from Accra',
+        'travel',
+        'Leave early to avoid peak traffic.',
+        NOW()
+      ),
+      (
+        'itinerary_checkin',
+        ${activePlan.id},
+        2,
+        TIMESTAMP '2026-04-04 12:00:00',
+        TIMESTAMP '2026-04-04 14:00:00',
+        'Lodge check-in and quiet lunch',
+        'stay',
+        'Low-stimulation reset before afternoon planning.',
+        NOW()
+      )
+    ON CONFLICT ("planId", "sequence") DO UPDATE
+    SET "startsAt" = EXCLUDED."startsAt",
+        "endsAt" = EXCLUDED."endsAt",
+        "title" = EXCLUDED."title",
+        "type" = EXCLUDED."type",
+        "notes" = EXCLUDED."notes"
+  `
+  console.log('✅ Groups and safety seeded')
+
   console.log('\n🎉 Seed complete. Database is ready.')
 }
 

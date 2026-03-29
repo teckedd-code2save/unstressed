@@ -85,20 +85,7 @@ function createTestServices() {
       placeImageUrl: null,
       notes: null,
       savedAt: new Date('2026-03-28T09:00:00.000Z'),
-      collection: {
-        id: 'folder_1',
-        userId: user.id,
-        name: 'Summer Retreats',
-        description: 'Warm weather sanctuaries.',
-        type: 'FOLDER' as const,
-        coverImage: null,
-        isPrivate: false,
-        icon: '☀️',
-        dateStart: null,
-        dateEnd: null,
-        createdAt: new Date('2026-03-20T00:00:00.000Z'),
-        updatedAt: new Date('2026-03-20T00:00:00.000Z'),
-      },
+      collectionName: 'Summer Retreats',
     },
   ]
 
@@ -128,6 +115,116 @@ function createTestServices() {
     },
     async getRecentlySavedItems() {
       return recentItems as any
+    },
+    async getGroupsDashboardByUser(userId) {
+      return {
+        groups: [
+          {
+            id: 'group_core_weekend',
+            name: 'Core Weekend Circle',
+            role: 'HOST',
+            memberCount: 4,
+            pendingVotes: 2,
+            nextDecisionAt: '2026-03-31T18:00:00.000Z',
+          },
+          {
+            id: 'group_sunset_reset',
+            name: 'Sunset Reset Crew',
+            role: 'MEMBER',
+            memberCount: 3,
+            pendingVotes: 1,
+            nextDecisionAt: '2026-03-30T19:30:00.000Z',
+          },
+        ],
+        activePlan: {
+          id: 'plan_akosombo_retreat',
+          groupId: 'group_core_weekend',
+          title: 'Akosombo Reset',
+          status: 'VOTING',
+          window: {
+            start: '2026-04-04T09:00:00.000Z',
+            end: '2026-04-05T19:00:00.000Z',
+          },
+          participants: [
+            { userId, displayName: 'You', voteStatus: 'SUBMITTED' },
+            { userId: 'member_2', displayName: 'Nana', voteStatus: 'PENDING' },
+            { userId: 'member_3', displayName: 'Ama', voteStatus: 'SUBMITTED' },
+          ],
+          options: [
+            {
+              id: 'option_river_lodge',
+              title: 'Riverfront Lodge',
+              category: 'stay',
+              score: 92,
+              votes: 2,
+              whyItFits: 'Calm water views, low travel fatigue, and enough privacy for recovery.',
+            },
+            {
+              id: 'option_hill_trails',
+              title: 'Hill Trails + Picnic',
+              category: 'activity',
+              score: 87,
+              votes: 1,
+              whyItFits: 'Balances movement with quiet downtime and works for mixed energy levels.',
+            },
+          ],
+          itineraryDraft: [
+            {
+              id: 'itinerary_departure',
+              startsAt: '2026-04-04T09:00:00.000Z',
+              title: 'Departure from Accra',
+              type: 'travel',
+            },
+            {
+              id: 'itinerary_checkin',
+              startsAt: '2026-04-04T12:00:00.000Z',
+              title: 'Lodge check-in and quiet lunch',
+              type: 'stay',
+            },
+          ],
+        },
+      } as any
+    },
+    async getSafetyDashboardByUser(userId) {
+      return {
+        circles: [
+          {
+            id: 'circle_close_friends',
+            name: 'Close Friends',
+            memberCount: 3,
+            liveShareEnabled: true,
+            quietCheckInIntervalMins: 90,
+          },
+        ],
+        activeShare: {
+          id: 'share_evening_walk',
+          ownerUserId: userId,
+          status: 'ACTIVE',
+          startedAt: '2026-03-29T17:00:00.000Z',
+          expiresAt: '2026-03-29T20:00:00.000Z',
+          destinationLabel: 'Airport Residential evening walk',
+          viewers: [
+            { userId: 'friend_1', displayName: 'Nana' },
+            { userId: 'friend_2', displayName: 'Ama' },
+          ],
+        },
+        recentCheckIns: [
+          {
+            id: 'checkin_1',
+            status: 'SAFE',
+            note: 'Reached the cafe, battery is fine.',
+            createdAt: '2026-03-29T17:30:00.000Z',
+          },
+        ],
+      } as any
+    },
+    async createSafetyCheckIn(params) {
+      return {
+        accepted: true,
+        status: params.status,
+        note: params.note ?? null,
+        recordedAt: new Date('2026-03-29T18:00:00.000Z').toISOString(),
+      }
     },
     async createCollection(data) {
       const created = {
@@ -301,5 +398,46 @@ test('collections endpoints aggregate reads and allow writes', async () => {
 
     assert.equal(addItemResponse.statusCode, 201)
     assert.equal(addItemResponse.json().placeName, 'Stillwater Spa Lounge')
+  })
+})
+
+test('group planning dashboard returns active plan context', async () => {
+  await withApp(async (app) => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/groups/dashboard',
+      headers: { 'x-dev-bypass': 'true' },
+    })
+
+    assert.equal(response.statusCode, 200)
+    const body = response.json()
+    assert.equal(body.groups.length, 2)
+    assert.equal(body.activePlan.status, 'VOTING')
+    assert.equal(body.activePlan.options.length, 2)
+  })
+})
+
+test('safety routes return circles and accept check-ins', async () => {
+  await withApp(async (app) => {
+    const getResponse = await app.inject({
+      method: 'GET',
+      url: '/api/safety/circles',
+      headers: { 'x-dev-bypass': 'true' },
+    })
+
+    assert.equal(getResponse.statusCode, 200)
+    const body = getResponse.json()
+    assert.equal(body.circles.length, 1)
+    assert.equal(body.activeShare.status, 'ACTIVE')
+
+    const checkInResponse = await app.inject({
+      method: 'POST',
+      url: '/api/safety/check-ins',
+      headers: { 'x-dev-bypass': 'true' },
+      payload: { status: 'HELP', note: 'Need pickup from the trail exit.' },
+    })
+
+    assert.equal(checkInResponse.statusCode, 202)
+    assert.equal(checkInResponse.json().status, 'HELP')
   })
 })

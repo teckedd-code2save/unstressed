@@ -42,7 +42,7 @@ export async function collectionsRoute(app: FastifyInstance) {
       name: item.placeName,
       location: item.placeLocation ?? '',
       imageUrl: item.placeImageUrl ?? '',
-      collectionName: item.collection.name,
+      collectionName: item.collectionName,
     }))
 
     return reply.send({ trips, folders, recentlySaved })

@@ -4,6 +4,9 @@ import {
   upsertContext,
   getCollectionsByUser,
   getRecentlySavedItems,
+  getGroupsDashboardByUser,
+  getSafetyDashboardByUser,
+  createSafetyCheckIn,
   createCollection,
   addItemToCollection,
   upsertUserByClerkId,
@@ -16,6 +19,9 @@ export type AppServices = {
   upsertContext: typeof upsertContext
   getCollectionsByUser: typeof getCollectionsByUser
   getRecentlySavedItems: typeof getRecentlySavedItems
+  getGroupsDashboardByUser: typeof getGroupsDashboardByUser
+  getSafetyDashboardByUser: typeof getSafetyDashboardByUser
+  createSafetyCheckIn: typeof createSafetyCheckIn
   createCollection: typeof createCollection
   addItemToCollection: typeof addItemToCollection
   upsertUserByClerkId: typeof upsertUserByClerkId
@@ -29,6 +35,9 @@ export const defaultServices: AppServices = {
   upsertContext,
   getCollectionsByUser,
   getRecentlySavedItems,
+  getGroupsDashboardByUser,
+  getSafetyDashboardByUser,
+  createSafetyCheckIn,
   createCollection,
   addItemToCollection,
   upsertUserByClerkId,

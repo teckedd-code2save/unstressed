@@ -27,11 +27,21 @@ export async function addItemToCollection(
 export async function getRecentlySavedItems(
   userId: string,
   limit = 5,
-): Promise<(CollectionItem & { collection: Collection })[]> {
-  return prisma.collectionItem.findMany({
-    where: { collection: { userId } },
-    include: { collection: true },
-    orderBy: { savedAt: 'desc' },
-    take: limit,
-  })
+): Promise<Array<CollectionItem & { collectionName: string }>> {
+  return prisma.$queryRaw<Array<CollectionItem & { collectionName: string }>>`
+    SELECT
+      ci."id",
+      ci."collectionId",
+      ci."placeName",
+      ci."placeLocation",
+      ci."placeImageUrl",
+      ci."notes",
+      ci."savedAt",
+      c."name" AS "collectionName"
+    FROM "collection_items" ci
+    INNER JOIN "collections" c ON c."id" = ci."collectionId"
+    WHERE c."userId" = ${userId}
+    ORDER BY ci."savedAt" DESC
+    LIMIT ${limit}
+  `
 }

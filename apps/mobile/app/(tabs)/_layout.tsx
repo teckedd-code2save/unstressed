@@ -88,6 +88,22 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="groups"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} colorScheme={colorScheme} icon="◌" label="Groups" />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="safety"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} colorScheme={colorScheme} icon="▲" label="Safety" />
+          ),
+        }}
+      />
     </Tabs>
   )
 }

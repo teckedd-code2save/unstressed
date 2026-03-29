@@ -2,8 +2,8 @@ import '../global.css'
 import { useEffect } from 'react'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { ClerkProvider, ClerkLoaded, useAuth } from '@clerk/clerk-expo'
-import { tokenCache } from '@clerk/clerk-expo/token-cache'
+import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
+import * as SecureStore from 'expo-secure-store'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts } from 'expo-font'
 import {
@@ -15,13 +15,29 @@ import {
   Manrope_800ExtraBold,
 } from '@expo-google-fonts/manrope'
 import { useColorScheme } from 'react-native'
+import Constants from 'expo-constants'
+import { QueryClient, QueryClientProvider } from 'react-query'
 
 SplashScreen.preventAutoHideAsync()
 
-const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  },
+})
 
-if (!publishableKey) {
-  throw new Error('Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in .env')
+const tokenCache = {
+  async getToken(key: string) {
+    return SecureStore.getItemAsync(key)
+  },
+  async saveToken(key: string, value: string) {
+    return SecureStore.setItemAsync(key, value)
+  },
 }
 
 function RootLayoutNav() {
@@ -61,10 +77,13 @@ export default function RootLayout() {
   if (!fontsLoaded) return null
 
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <ClerkLoaded>
+    <ClerkProvider
+      publishableKey={Constants.expoConfig?.extra?.clerkPublishableKey ?? ''}
+      tokenCache={tokenCache}
+    >
+      <QueryClientProvider client={queryClient}>
         <RootLayoutNav />
-      </ClerkLoaded>
+      </QueryClientProvider>
     </ClerkProvider>
   )
 }

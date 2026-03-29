@@ -1,7 +1,6 @@
-import { useState } from 'react'
-import { useAuth, useUser } from '@clerk/clerk-expo'
+import { useAuth } from '@clerk/clerk-expo'
+import { useMutation, useQuery, useQueryClient } from 'react-query'
 import { createApiClient } from '@/lib/api'
-import { useCachedApi } from './useCachedApi'
 
 export type UserContext = {
   energyLevel: string
@@ -16,34 +15,41 @@ export type UserContext = {
 
 export function useUserContext() {
   const { getToken } = useAuth()
-  const { user } = useUser()
-  const [isSaving, setIsSaving] = useState(false)
+  const queryClient = useQueryClient()
 
-  const { data: context, isLoading, mutate } = useCachedApi<UserContext>(
-    user?.id ? `ctx-${user.id}` : null,
+  const query = useQuery<UserContext, Error>(
+    ['user-context'],
     async () => {
       const api = createApiClient(getToken)
-      return await api.get('/api/context')
+      return api.get('/api/context')
     },
-    1000 * 60 * 5 // 5 min TTL
+    {
+      staleTime: 5 * 60_000,
+    },
+  )
+
+  const mutation = useMutation<UserContext, Error, Partial<UserContext>>(
+    async (patch) => {
+      const api = createApiClient(getToken)
+      return api.patch('/api/context', patch)
+    },
+    {
+      onSuccess: (updated) => {
+        queryClient.setQueryData(['user-context'], updated)
+      },
+    },
   )
 
   const updateContext = async (patch: Partial<UserContext>) => {
-    if (!context) return
-    setIsSaving(true)
-    try {
-      // Optimistic update
-      const nextContext = { ...context, ...patch }
-      mutate(nextContext)
-
-      // Network update
-      const api = createApiClient(getToken)
-      const updated = await api.patch('/api/context', patch)
-      mutate(updated)
-    } finally {
-      setIsSaving(false)
-    }
+    await mutation.mutateAsync(patch)
   }
 
-  return { context, isLoading, isSaving, updateContext }
+  return {
+    context: query.data ?? null,
+    isLoading: query.isLoading,
+    isSaving: mutation.isLoading,
+    error: query.error?.message ?? mutation.error?.message ?? null,
+    updateContext,
+    refetch: query.refetch,
+  }
 }

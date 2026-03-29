@@ -16,7 +16,7 @@ export default function WelcomeScreen() {
       const { createdSessionId, setActive } = await startGoogleOAuth()
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId })
-        router.replace('/')
+        router.replace('/(tabs)')
       }
     } catch (err) {
       console.error('OAuth error', err)

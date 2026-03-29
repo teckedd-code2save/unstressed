@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/clerk-expo'
+import { useQuery } from 'react-query'
 import { createApiClient } from '@/lib/api'
 
 export type MomentumItem = {
@@ -35,18 +35,22 @@ export type RightNowData = {
 
 export function useRightNow() {
   const { getToken } = useAuth()
-  const [data, setData] = useState<RightNowData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const api = createApiClient(getToken)
-    api
-      .get('/api/suggestions/right-now')
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setIsLoading(false))
-  }, [])
+  const query = useQuery<RightNowData, Error>(
+    ['right-now'],
+    async () => {
+      const api = createApiClient(getToken)
+      return api.get('/api/suggestions/right-now')
+    },
+    {
+      staleTime: 60_000,
+    },
+  )
 
-  return { data, isLoading, error }
+  return {
+    data: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  }
 }

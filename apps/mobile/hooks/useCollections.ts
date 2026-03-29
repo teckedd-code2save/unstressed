@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/clerk-expo'
+import { useQuery } from 'react-query'
 import { createApiClient } from '@/lib/api'
 
 export type Trip = {
@@ -31,22 +31,26 @@ export type RecentSave = {
 
 export function useCollections() {
   const { getToken } = useAuth()
-  const [trips, setTrips] = useState<Trip[]>([])
-  const [folders, setFolders] = useState<Folder[]>([])
-  const [recentlySaved, setRecentlySaved] = useState<RecentSave[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const query = useQuery<
+    { trips?: Trip[]; folders?: Folder[]; recentlySaved?: RecentSave[] },
+    Error
+  >(
+    ['collections'],
+    async () => {
+      const api = createApiClient(getToken)
+      return api.get('/api/collections')
+    },
+    {
+      staleTime: 5 * 60_000,
+    },
+  )
 
-  useEffect(() => {
-    const api = createApiClient(getToken)
-    api
-      .get('/api/collections')
-      .then((data) => {
-        setTrips(data.trips ?? [])
-        setFolders(data.folders ?? [])
-        setRecentlySaved(data.recentlySaved ?? [])
-      })
-      .finally(() => setIsLoading(false))
-  }, [])
-
-  return { trips, folders, recentlySaved, isLoading }
+  return {
+    trips: query.data?.trips ?? [],
+    folders: query.data?.folders ?? [],
+    recentlySaved: query.data?.recentlySaved ?? [],
+    isLoading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  }
 }
